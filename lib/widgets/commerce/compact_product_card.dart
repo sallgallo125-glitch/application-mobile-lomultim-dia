@@ -136,7 +136,6 @@ class _CompactProductCardState extends State<CompactProductCard> {
                                   url: product.imageUrl,
                                   categoryId: product.categoryId,
                                   iconSize: 40,
-                                  heroTag: 'compact_img_${product.id}',
                                 ),
                                 if (secondaryImageUrl != null)
                                   AnimatedOpacity(

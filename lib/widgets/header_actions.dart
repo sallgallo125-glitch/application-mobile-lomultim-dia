@@ -120,27 +120,51 @@ class _QuickAddButtonState extends ConsumerState<QuickAddButton> {
   @override
   Widget build(BuildContext context) {
     if (widget.fullWidth) {
+      // Sober outlined button: white, thin grey border, dark text; it turns
+      // dark blue while pressed.
+      final enabled = widget.inStock && !_busy;
       return SizedBox(
         width: double.infinity,
-        child: TextButton(
-          style: TextButton.styleFrom(
-            backgroundColor: const Color(0xFFEEF2FB),
-            foregroundColor: const Color(0xFF4754A4),
-            disabledBackgroundColor: const Color(0xFFF1F5F9),
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        height: 38,
+        child: OutlinedButton.icon(
+          style: ButtonStyle(
+            padding: const WidgetStatePropertyAll(
+                EdgeInsets.symmetric(horizontal: 8)),
+            shape: WidgetStatePropertyAll(RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10))),
+            side: WidgetStateProperty.resolveWith((states) => BorderSide(
+                color: states.contains(WidgetState.pressed)
+                    ? AppColors.primaryDark
+                    : AppColors.border)),
+            backgroundColor: WidgetStateProperty.resolveWith((states) =>
+                states.contains(WidgetState.pressed)
+                    ? AppColors.primaryDark
+                    : AppColors.white),
+            foregroundColor: WidgetStateProperty.resolveWith((states) =>
+                states.contains(WidgetState.disabled)
+                    ? AppColors.textSecondary
+                    : states.contains(WidgetState.pressed)
+                        ? AppColors.white
+                        : AppColors.text),
+            overlayColor: const WidgetStatePropertyAll(Colors.transparent),
           ),
-          onPressed: widget.inStock && !_busy ? _add : null,
-          child: FittedBox(
+          onPressed: enabled ? _add : null,
+          icon: _busy
+              ? const SizedBox.square(
+                  dimension: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.shopping_cart_outlined, size: 17),
+          label: FittedBox(
             fit: BoxFit.scaleDown,
             // Weight only: the app's font family is kept.
             child: Text(
                 _busy
                     ? 'Ajout…'
                     : widget.inStock
-                        ? '+ Ajouter'
+                        ? 'Ajouter'
                         : 'Rupture de stock',
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                style: const TextStyle(
+                    fontWeight: FontWeight.w700, fontSize: 13.5)),
           ),
         ),
       );

@@ -112,7 +112,6 @@ class _ProductCardWidgetState extends State<ProductCardWidget> {
                               url: product.imageUrl,
                               categoryId: product.categoryId,
                               iconSize: 44,
-                              heroTag: 'product_img_${product.id}',
                             ),
                             if (secondaryImageUrl != null)
                               AnimatedOpacity(

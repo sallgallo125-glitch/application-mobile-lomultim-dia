@@ -33,6 +33,10 @@ void main() {
     await open(tester, '/produit/p-008');
     await tester.scrollUntilVisible(find.text('Consultés récemment'), 300,
         scrollable: find.byType(Scrollable).first);
+    // The rail's cards sit below the title: scroll down to them.
+    await tester.scrollUntilVisible(
+        find.textContaining('HP ProBook 450 G10'), 300,
+        scrollable: find.byType(Scrollable).first);
     expect(find.textContaining('HP ProBook 450 G10'), findsWidgets);
 
     // Third product: both previous ones, most recent first.
@@ -42,6 +46,8 @@ void main() {
     expect(find.textContaining('Apple iPhone 15'), findsWidgets);
 
     // "Effacer" empties the list.
+    await tester.ensureVisible(find.text('Effacer'));
+    await tester.pump();
     await tester.tap(find.text('Effacer'));
     await tester.pump();
     expect(find.text('Consultés récemment'), findsNothing);

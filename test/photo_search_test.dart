@@ -47,7 +47,7 @@ void main() {
     }
     expect(find.text('Produits similaires'), findsOneWidget);
     expect(find.textContaining('Rayon détecté'), findsOneWidget);
-    expect(find.text('+ Ajouter'), findsWidgets);
+    expect(find.text('Ajouter'), findsWidgets);
 
     appRouter.go('/');
     await tester.pump(const Duration(seconds: 1));

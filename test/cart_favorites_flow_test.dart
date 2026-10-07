@@ -104,7 +104,7 @@ void main() {
         const ProviderScope(child: LoMultimediaApp(useGoogleFonts: false)));
     await open(tester, '/boutique');
     expect(find.text('Filtres'), findsOneWidget);
-    await tester.tap(find.text('+ Ajouter').first);
+    await tester.tap(find.text('Ajouter').first);
     await settle(tester);
     expect(cartBadge('1'), findsOneWidget);
     appRouter.go('/');

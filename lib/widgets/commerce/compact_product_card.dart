@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -259,25 +260,35 @@ class _RoundHeart extends ConsumerWidget {
       label: active ? 'Retirer des favoris' : 'Ajouter aux favoris',
       child: Tooltip(
         message: active ? 'Retirer des favoris' : 'Ajouter aux favoris',
-        child: InkResponse(
+        child: InkWell(
           onTap: () => toggleFavorite(ref, productId),
-          radius: 20,
-          child: Container(
-            width: 30,
-            height: 30,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                    color: Color(0x1C17233E),
-                    blurRadius: 6,
-                    offset: Offset(0, 2)),
-              ],
+          borderRadius: BorderRadius.circular(20),
+          child: ClipOval(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+              child: Container(
+                width: 24,
+                height: 24,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.82),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.6),
+                    width: 1,
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                        color: Color(0x1C17233E),
+                        blurRadius: 6,
+                        offset: Offset(0, 2)),
+                  ],
+                ),
+                child: Icon(active ? Icons.favorite : Icons.favorite_border,
+                    size: 13,
+                    color: active ? AppColors.danger : const Color(0xFF79859A)),
+              ),
             ),
-            child: Icon(active ? Icons.favorite : Icons.favorite_border,
-                size: 17,
-                color: active ? AppColors.danger : const Color(0xFF79859A)),
           ),
         ),
       ),

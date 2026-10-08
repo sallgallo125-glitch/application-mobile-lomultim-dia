@@ -41,6 +41,16 @@ class CheckoutActions {
       // Remembered on the device to pre-fill the next guest checkout.
       ref.read(guestContactProvider.notifier).state =
           GuestContact(name: name, phone: phone, address: address);
+      // Kept on the device: "Mes commandes" works without an account.
+      ref.read(guestOrdersProvider.notifier).state = [
+        GuestOrder(
+            number: order.number,
+            createdAt: order.createdAt,
+            totalXof: order.totalXof,
+            phone: phone,
+            status: order.status),
+        ...ref.read(guestOrdersProvider),
+      ].take(30).toList();
     }
     ref.invalidate(cartProvider);
     ref.invalidate(ordersProvider);

@@ -14,6 +14,7 @@ class OrdersScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (!ref.watch(signedInProvider)) return const _GuestOrdersScreen();
     final orders = ref.watch(ordersProvider);
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -62,6 +63,91 @@ class OrdersScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// "Mes commandes" without an account: orders placed on this device, each
+/// trackable with its number and phone.
+class _GuestOrdersScreen extends ConsumerWidget {
+  const _GuestOrdersScreen();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final orders = ref.watch(guestOrdersProvider);
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        bottom: false,
+        child: Column(children: [
+          AppHeader(
+            title: 'Mes commandes',
+            onBack: () =>
+                context.canPop() ? context.pop() : context.go('/compte'),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySoft,
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                  ),
+                  child: const Row(children: [
+                    Icon(Icons.phone_iphone, color: AppColors.primaryDark),
+                    SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                          'Commandes passées sans compte sur ce téléphone. '
+                          'Créez un compte pour les retrouver partout.',
+                          style: TextStyle(
+                              color: AppColors.primaryDark, fontSize: 13)),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                if (orders.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
+                    child: Text('Aucune commande sur ce téléphone.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: AppColors.textSecondary)),
+                  )
+                else
+                  for (final order in orders)
+                    Card(
+                      child: ListTile(
+                        title: Text(order.number,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w800)),
+                        subtitle: Text(
+                            '${order.createdAt} · ${formatXof(order.totalXof)}\n${order.status}'),
+                        isThreeLine: true,
+                        trailing: TextButton(
+                          onPressed: () => context.push(
+                              '/suivi?commande=${Uri.encodeComponent(order.number)}&tel=${Uri.encodeComponent(order.phone)}'),
+                          child: const Text('Suivre'),
+                        ),
+                      ),
+                    ),
+                const SizedBox(height: AppSpacing.md),
+                OutlinedButton.icon(
+                  onPressed: () => context.push('/suivi'),
+                  icon: const Icon(Icons.search),
+                  label: const Text('Suivre une autre commande'),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                ElevatedButton(
+                  onPressed: () => context.push('/inscription'),
+                  child: const Text('Créer mon compte'),
+                ),
+              ],
+            ),
+          ),
+        ]),
       ),
     );
   }

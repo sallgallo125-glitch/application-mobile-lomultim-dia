@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -41,20 +42,71 @@ void toggleFavorite(WidgetRef ref, String productId) {
 
 /// Heart button used on product cards and list items.
 class FavoriteButton extends ConsumerWidget {
-  const FavoriteButton({super.key, required this.productId, this.size = 20});
+  const FavoriteButton({
+    super.key,
+    required this.productId,
+    this.size = 13,
+    this.useContainer = true,
+  });
   final String productId;
   final double size;
+  final bool useContainer;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isFavorite = ref.watch(favoriteIdsProvider).contains(productId);
-    return IconButton(
-      tooltip: isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
-      visualDensity: VisualDensity.compact,
-      iconSize: size,
-      onPressed: () => toggleFavorite(ref, productId),
-      icon: Icon(isFavorite ? Icons.favorite : Icons.favorite_outline,
-          color: isFavorite ? const Color(0xFFDE2E26) : null),
+    final iconWidget = Icon(
+      isFavorite ? Icons.favorite : Icons.favorite_border,
+      size: size,
+      color: isFavorite ? AppColors.danger : const Color(0xFF79859A),
+    );
+
+    if (!useContainer) {
+      return IconButton(
+        tooltip: isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
+        visualDensity: VisualDensity.compact,
+        iconSize: size,
+        onPressed: () => toggleFavorite(ref, productId),
+        icon: iconWidget,
+      );
+    }
+
+    return Semantics(
+      button: true,
+      label: isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
+      child: Tooltip(
+        message: isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
+        child: InkWell(
+          onTap: () => toggleFavorite(ref, productId),
+          borderRadius: BorderRadius.circular(20),
+          child: ClipOval(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+              child: Container(
+                width: 24,
+                height: 24,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.82),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.6),
+                    width: 1,
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x1417233E),
+                      blurRadius: 6,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: iconWidget,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

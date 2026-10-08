@@ -94,6 +94,9 @@ void main() {
     await tester.tap(next);
     await settle();
     // Step 3: confirm.
+    // Recap: no points promised to a guest.
+    expect(find.text('Points LO+ gagnés'), findsNothing);
+    expect(find.text('Avec un compte LO+'), findsOneWidget);
     await tester.tap(find.widgetWithText(ElevatedButton, 'Confirmer'));
     await settle();
 
@@ -106,6 +109,9 @@ void main() {
     expect(find.text('Créer mon compte gratuitement'), findsOneWidget);
     // Details remembered for the next guest checkout.
     expect(c.read(guestContactProvider)?.name, 'Fatou Sow');
+    // Order kept on the device for "Mes commandes" without an account.
+    final guestOrders = c.read(guestOrdersProvider);
+    expect(guestOrders, hasLength(1));
 
     // Track the order with its number + phone (pre-filled).
     final trackButton = find.widgetWithText(OutlinedButton, 'Suivre ma commande');
@@ -117,6 +123,12 @@ void main() {
     await settle();
     expect(find.text('Commande confirmée'), findsWidgets);
     expect(find.textContaining('Aucune commande'), findsNothing);
+
+    // "Mes commandes" without an account lists it, with "Suivre".
+    appRouter.go('/commandes');
+    await settle();
+    expect(find.text(guestOrders.first.number), findsOneWidget);
+    expect(find.text('Suivre'), findsOneWidget);
 
     appRouter.go('/');
     await settle();

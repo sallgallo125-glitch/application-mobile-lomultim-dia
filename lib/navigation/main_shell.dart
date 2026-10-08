@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../screens/boutique_screen.dart' show shopOpenedFromHomeProvider;
 import '../theme/tokens.dart';
 
 /// Tabs of the bottom bar.
@@ -23,8 +26,14 @@ class MainShell extends StatelessWidget {
       body: navigationShell,
       bottomNavigationBar: _FloatingNavBar(
         currentIndex: navigationShell.currentIndex,
-        onSelect: (index) => navigationShell.goBranch(index,
-            initialLocation: index == navigationShell.currentIndex),
+        onSelect: (index) {
+          // Opened from the bottom bar: the shop shows no back button.
+          ProviderScope.containerOf(context)
+              .read(shopOpenedFromHomeProvider.notifier)
+              .state = false;
+          navigationShell.goBranch(index,
+              initialLocation: index == navigationShell.currentIndex);
+        },
       ),
     );
   }

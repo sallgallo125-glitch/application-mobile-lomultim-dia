@@ -157,8 +157,8 @@ class _ProductCardWidgetState extends State<ProductCardWidget> {
                       ),
                     ),
                   Positioned(
-                      top: 0,
-                      right: 0,
+                      top: AppSpacing.sm,
+                      right: AppSpacing.sm,
                       child: FavoriteButton(productId: product.id)),
                 ]),
               ),

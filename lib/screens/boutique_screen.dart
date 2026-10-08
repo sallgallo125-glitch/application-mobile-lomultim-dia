@@ -26,6 +26,10 @@ export '../features/catalog/shop_filters.dart' show CatalogSort;
 /// shop applies it.
 final shopSortRequestProvider = StateProvider<CatalogSort?>((ref) => null);
 
+/// True when the shop was opened from a home "Nos rayons" circle: the shop
+/// then shows a back button to the home page.
+final shopOpenedFromHomeProvider = StateProvider<bool>((ref) => false);
+
 class BoutiqueScreen extends ConsumerStatefulWidget {
   const BoutiqueScreen({super.key});
   @override
@@ -89,6 +93,13 @@ class _BoutiqueScreenState extends ConsumerState<BoutiqueScreen> {
           child: Column(children: [
             AppHeader(
               title: 'Boutique',
+              onBack: ref.watch(shopOpenedFromHomeProvider)
+                  ? () {
+                      ref.read(shopOpenedFromHomeProvider.notifier).state =
+                          false;
+                      context.go('/');
+                    }
+                  : null,
               searchField: SearchField(
                   controller: _search,
                   placeholder: 'Rechercher un produit, une marque…',
@@ -223,7 +234,11 @@ class _Content extends StatelessWidget {
             child: Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
-                onPressed: onOpenFilters,
+                onPressed: () async {
+                  final sort =
+                      await showSortSheet(context, current: filters.sort);
+                  if (sort != null) onChanged(filters.copyWith(sort: sort));
+                },
                 icon: const Icon(Icons.swap_vert, size: 18),
                 label: Text(filters.sort.label,
                     maxLines: 1, overflow: TextOverflow.ellipsis),

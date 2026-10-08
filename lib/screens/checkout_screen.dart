@@ -594,9 +594,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     totals.deliveryFeeXof == 0
                         ? 'Offerte'
                         : formatXof(totals.deliveryFeeXof)),
-                _line('Points LO+ gagnés',
-                    '+${loyaltyPointsFor(totals.subtotalXof - totals.promoDiscountXof - pointsDiscount)} pts',
-                    accent: AppColors.success),
+                // Guests earn no points: invite them to create an account.
+                if (ref.watch(signedInProvider))
+                  _line('Points LO+ gagnés',
+                      '+${loyaltyPointsFor(totals.subtotalXof - totals.promoDiscountXof - pointsDiscount)} pts',
+                      accent: AppColors.success)
+                else
+                  _line('Avec un compte LO+',
+                      '+${loyaltyPointsFor(totals.subtotalXof - totals.promoDiscountXof)} pts',
+                      accent: AppColors.textSecondary),
                 const Divider(),
                 _line('Total', formatXof(totals.totalXof), bold: true),
                 if (pointsDiscount > 0)

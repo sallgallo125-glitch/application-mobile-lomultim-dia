@@ -27,10 +27,92 @@ class AccountScreen extends ConsumerWidget {
               ]),
               if (!signedIn)
                 Expanded(
-                    child: Center(
-                        child: ElevatedButton(
-                            onPressed: () => context.push('/connexion'),
-                            child: const Text('Se connecter'))))
+                  child: ListView(
+                    padding: EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        AppSpacing.lg,
+                        AppSpacing.lg,
+                        AppSpacing.lg + navBarClearance(context)),
+                    children: [
+                      Card(
+                        margin: EdgeInsets.zero,
+                        child: Padding(
+                          padding: const EdgeInsets.all(AppSpacing.lg),
+                          child: Column(
+                            children: [
+                              Image.asset('assets/images/logo.png',
+                                  height: 52),
+                              const SizedBox(height: AppSpacing.sm),
+                              const Text(
+                                'Bienvenue sur LoMultimedia',
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.w800),
+                              ),
+                              const SizedBox(height: AppSpacing.xs),
+                              const Text(
+                                'Connectez-vous pour retrouver vos achats et cumuler vos points LO+.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 13),
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: () => context.push('/connexion'),
+                                  child: const Text('Se connecter'),
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.sm),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton(
+                                  onPressed: () => context.push('/inscription'),
+                                  child: const Text('Créer un compte'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      _MenuGroup(title: 'Achats & Suivi', items: [
+                        _Menu(
+                          icon: Icons.receipt_long_outlined,
+                          label: 'Mes commandes',
+                          onTap: () => context.push('/commandes'),
+                        ),
+                        _Menu(
+                          icon: Icons.local_shipping_outlined,
+                          label: 'Suivre une commande (sans compte)',
+                          onTap: () => context.push('/suivi'),
+                        ),
+                      ]),
+                      _MenuGroup(title: 'Service client & Aide', items: [
+                        _Menu(
+                          icon: Icons.support_agent,
+                          label: 'Aide & assistance Arame',
+                          onTap: () => context.push('/chat'),
+                        ),
+                        _Menu(
+                          icon: Icons.location_on_outlined,
+                          label: 'Nos showrooms',
+                          onTap: () => context.push('/showrooms'),
+                        ),
+                        _Menu(
+                          icon: Icons.help_outline,
+                          label: 'Questions fréquentes',
+                          onTap: () => context.push('/faq'),
+                        ),
+                        _Menu(
+                          icon: Icons.contact_phone_outlined,
+                          label: 'Contact',
+                          onTap: () => context.push('/contact'),
+                        ),
+                      ]),
+                    ],
+                  ),
+                )
               else
                 summary.when(
                     loading: () => const LoadingState(

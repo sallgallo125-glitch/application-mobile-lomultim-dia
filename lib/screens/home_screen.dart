@@ -6,7 +6,8 @@ import '../contracts/home.dart';
 import '../features/home/home_providers.dart';
 import '../theme/tokens.dart';
 import '../widgets/app_header.dart';
-import 'boutique_screen.dart' show CatalogSort, shopSortRequestProvider;
+import 'boutique_screen.dart'
+    show CatalogSort, shopOpenedFromHomeProvider, shopSortRequestProvider;
 import '../features/catalog/shop_filters.dart';
 import '../widgets/commerce/category_card.dart';
 import '../widgets/commerce/product_rail.dart';
@@ -157,6 +158,7 @@ class _HomeContentView extends ConsumerWidget {
                     ref.read(shopFiltersProvider.notifier).state = ref
                         .read(shopFiltersProvider)
                         .copyWith(categoryIds: {category.id});
+                    ref.read(shopOpenedFromHomeProvider.notifier).state = true;
                     context.go('/boutique');
                   },
                 );

@@ -131,5 +131,50 @@ final guestContactProvider = StateProvider<GuestContact?>((ref) {
   });
 });
 
+/// An order placed without an account, kept on this device so the guest
+/// can find and track it later.
+class GuestOrder {
+  const GuestOrder(
+      {required this.number,
+      required this.createdAt,
+      required this.totalXof,
+      required this.phone,
+      required this.status});
+  final String number;
+  final String createdAt;
+  final int totalXof;
+  final String phone;
+  final String status;
+
+  Map<String, dynamic> toJson() => {
+        'number': number,
+        'createdAt': createdAt,
+        'totalXof': totalXof,
+        'phone': phone,
+        'status': status,
+      };
+  factory GuestOrder.fromJson(Map<String, dynamic> j) => GuestOrder(
+      number: j['number'] as String,
+      createdAt: j['createdAt'] as String,
+      totalXof: (j['totalXof'] as num).toInt(),
+      phone: j['phone'] as String,
+      status: j['status'] as String);
+}
+
+/// Guest orders placed on this device, most recent first (max 30).
+final guestOrdersProvider = StateProvider<List<GuestOrder>>((ref) {
+  const key = 'guest_orders';
+  ref.listenSelf(
+      (_, next) => writeStored(ref, key, [for (final o in next) o.toJson()]));
+  return readStored(
+          ref,
+          key,
+          (json) => [
+                for (final o in json as List<dynamic>)
+                  GuestOrder.fromJson(o as Map<String, dynamic>)
+              ]) ??
+      const <GuestOrder>[];
+});
+
 final signedInProvider =
     Provider<bool>((ref) => ref.watch(sessionUserProvider) != null);

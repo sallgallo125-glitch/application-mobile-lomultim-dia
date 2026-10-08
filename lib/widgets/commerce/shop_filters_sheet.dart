@@ -31,6 +31,69 @@ Future<ShopFilterState?> showShopFiltersSheet(
           showSort: showSort),
     );
 
+/// Opens a quick bottom sheet specifically for selecting the sorting option.
+Future<CatalogSort?> showSortSheet(
+  BuildContext context, {
+  required CatalogSort current,
+}) =>
+    showModalBottomSheet<CatalogSort>(
+      context: context,
+      useSafeArea: true,
+      useRootNavigator: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Material(
+        color: AppColors.white,
+        clipBehavior: Clip.antiAlias,
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.swap_vert, color: AppColors.primary),
+                  const SizedBox(width: 8),
+                  const Text('Trier par',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: 'Fermer',
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            for (final s in CatalogSort.values)
+              ListTile(
+                dense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                leading: Icon(
+                  s == current
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  color: s == current ? AppColors.primary : AppColors.textSecondary,
+                  size: 20,
+                ),
+                title: Text(
+                  s.label,
+                  style: TextStyle(
+                    fontWeight: s == current ? FontWeight.w800 : FontWeight.w500,
+                    color: s == current ? AppColors.primary : AppColors.text,
+                  ),
+                ),
+                onTap: () => Navigator.pop(context, s),
+              ),
+            SizedBox(height: MediaQuery.paddingOf(context).bottom + 12),
+          ],
+        ),
+      ),
+    );
+
 /// Quick price ranges under the slider.
 const _priceRanges = [
   ('< 50 000', null, 50000),
@@ -117,13 +180,20 @@ class _ShopFiltersSheetState extends State<ShopFiltersSheet> {
                     title: 'Trier par',
                     child: Column(children: [
                       for (final s in CatalogSort.values)
-                        RadioListTile<CatalogSort>(
+                        ListTile(
                           dense: true,
                           contentPadding: EdgeInsets.zero,
-                          value: s,
-                          groupValue: f.sort,
+                          leading: Icon(
+                            s == f.sort
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_unchecked,
+                            color: s == f.sort
+                                ? AppColors.primary
+                                : AppColors.textSecondary,
+                            size: 20,
+                          ),
                           title: Text(s.label),
-                          onChanged: (v) => _set(f.copyWith(sort: v)),
+                          onTap: () => _set(f.copyWith(sort: s)),
                         ),
                     ]),
                   ),
@@ -158,12 +228,18 @@ class _ShopFiltersSheetState extends State<ShopFiltersSheet> {
                   badge: f.minRating == null ? 0 : 1,
                   child: Column(children: [
                     for (final stars in [4, 3])
-                      RadioListTile<int?>(
+                      ListTile(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
-                        toggleable: true,
-                        value: stars,
-                        groupValue: f.minRating,
+                        leading: Icon(
+                          f.minRating == stars
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_unchecked,
+                          color: f.minRating == stars
+                              ? AppColors.primary
+                              : AppColors.textSecondary,
+                          size: 20,
+                        ),
                         title: Row(children: [
                           for (var i = 1; i <= 5; i++)
                             Icon(i <= stars ? Icons.star : Icons.star_border,
@@ -171,7 +247,9 @@ class _ShopFiltersSheetState extends State<ShopFiltersSheet> {
                           const SizedBox(width: 6),
                           const Text('et plus'),
                         ]),
-                        onChanged: (v) => _set(f.copyWith(minRating: () => v)),
+                        onTap: () => _set(f.copyWith(
+                            minRating: () =>
+                                f.minRating == stars ? null : stars)),
                       ),
                   ]),
                 ),

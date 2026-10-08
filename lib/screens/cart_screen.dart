@@ -35,7 +35,6 @@ class CartScreen extends ConsumerWidget {
           children: [
             AppHeader(
               title: 'Mon panier',
-              onBack: () => context.canPop() ? context.pop() : context.go('/'),
               actions: [
                 notificationsHeaderAction(context, ref),
                 cartHeaderAction(context, ref),

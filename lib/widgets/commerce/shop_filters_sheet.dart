@@ -125,12 +125,9 @@ class _ShopFiltersSheetState extends State<ShopFiltersSheet> {
   bool _allBrands = false;
   String _brandQuery = '';
 
-  late final int _priceFloor = widget.products.isEmpty
-      ? 0
-      : widget.products.map((p) => p.priceXof).reduce((a, b) => a < b ? a : b);
-  late final int _priceCeil = widget.products.isEmpty
-      ? 1000000
-      : widget.products.map((p) => p.priceXof).reduce((a, b) => a > b ? a : b);
+  /// Fixed price range of the slider: 0 to 5 000 000 FCFA.
+  static const int _priceFloor = 0;
+  static const int _priceCeil = 5000000;
 
   int get _resultCount =>
       applyShopFilters(widget.products, f, query: widget.query, sort: false)
@@ -322,12 +319,12 @@ class _ShopFiltersSheetState extends State<ShopFiltersSheet> {
   Widget _priceBlock() {
     final lo = (f.minPriceXof ?? _priceFloor).clamp(_priceFloor, _priceCeil);
     final hi = (f.maxPriceXof ?? _priceCeil).clamp(lo, _priceCeil);
-    final span = (_priceCeil - _priceFloor).clamp(1, 1 << 40);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       RangeSlider(
         min: _priceFloor.toDouble(),
-        max: _priceCeil.toDouble() + (span == 1 ? 1 : 0),
-        divisions: 100,
+        max: _priceCeil.toDouble(),
+        // Steps of 10 000 FCFA.
+        divisions: _priceCeil ~/ 10000,
         values: RangeValues(lo.toDouble(), hi.toDouble()),
         labels: RangeLabels(formatXof(lo), formatXof(hi)),
         onChanged: (v) {

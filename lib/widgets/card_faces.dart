@@ -1,5 +1,9 @@
+import 'dart:math' as math;
+
+import 'package:barcode_widget/barcode_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../utils/currency.dart';
 
@@ -159,11 +163,13 @@ class LoyaltyCardFace extends StatelessWidget {
         Positioned(
             left: .042 * w,
             top: .465 * h,
-            child: Text(cardNumber, style: _lato(7.7 * cqw, letterSpacing: .03))),
+            child:
+                Text(cardNumber, style: _lato(7.7 * cqw, letterSpacing: .03))),
         Positioned(
             left: .042 * w,
             top: .816 * h,
-            child: Text('MEMBRE :', style: _lato(2.7 * cqw, letterSpacing: .03))),
+            child:
+                Text('MEMBRE :', style: _lato(2.7 * cqw, letterSpacing: .03))),
         Positioned(
             left: .042 * w,
             top: .872 * h,
@@ -175,7 +181,8 @@ class LoyaltyCardFace extends StatelessWidget {
         Positioned(
             left: .864 * w,
             top: .828 * h,
-            child: Text('POINTS :', style: _lato(2.7 * cqw, letterSpacing: .03))),
+            child:
+                Text('POINTS :', style: _lato(2.7 * cqw, letterSpacing: .03))),
         Positioned(
             left: .864 * w,
             top: .888 * h,
@@ -186,11 +193,12 @@ class LoyaltyCardFace extends StatelessWidget {
             child: Transform.rotate(
               angle: -12 * 3.1415926 / 180,
               child: Container(
-                padding:
-                    EdgeInsets.symmetric(horizontal: 3 * cqw, vertical: 1.2 * cqw),
+                padding: EdgeInsets.symmetric(
+                    horizontal: 3 * cqw, vertical: 1.2 * cqw),
                 decoration: BoxDecoration(
                   color: const Color(0xB8A0141E),
-                  border: Border.all(color: const Color(0xE6FFFFFF), width: .6 * cqw),
+                  border: Border.all(
+                      color: const Color(0xE6FFFFFF), width: .6 * cqw),
                   borderRadius: BorderRadius.circular(1.2 * cqw),
                 ),
                 child: Text('CARTE BLOQUÉE',
@@ -211,13 +219,20 @@ class LoyaltyCardFace extends StatelessWidget {
 
 // --------------------------------------------------------------- Gift card
 
-/// Card colour by amount, like the site (colorFor): the four mock-up values
-/// have their colour; any other amount takes its bracket's.
+/// Card colour by amount, from the printed gift-card sheet (LMIH prototype):
+/// blue under 50 000 (15 000, 25 000, 30 000), red from 50 000 (50 000,
+/// 75 000), teal from 100 000, orange from 500 000.
 (Color, Color) giftCardGradient(int amountXof) {
-  if (amountXof < 50000) return (const Color(0xFF122572), const Color(0xFF1A379D));
-  if (amountXof < 100000) return (const Color(0xFF9CA3AF), const Color(0xFFB8C4CC));
-  if (amountXof < 500000) return (const Color(0xFFC7862A), const Color(0xFFE4A852));
-  return (const Color(0xFF8B8F98), const Color(0xFFA8ADB8));
+  if (amountXof < 50000) {
+    return (const Color(0xFF15287D), const Color(0xFF2E45A8)); // bleu
+  }
+  if (amountXof < 100000) {
+    return (const Color(0xFF8A1A1E), const Color(0xFFC2474C)); // rouge
+  }
+  if (amountXof < 500000) {
+    return (const Color(0xFF12706E), const Color(0xFF34A09C)); // turquoise
+  }
+  return (const Color(0xFFA6470E), const Color(0xFFCC7D3A)); // orange
 }
 
 /// Gift card front (site: GiftCardFace).
@@ -245,7 +260,9 @@ class GiftCardFace extends StatelessWidget {
       decoration: BoxDecoration(
         // CSS 135deg: top-left to bottom-right.
         gradient: LinearGradient(
-            begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [g1, g2]),
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [g1, g2]),
       ),
       builder: (w, h, cqw) => [
         Positioned.fill(
@@ -259,7 +276,8 @@ class GiftCardFace extends StatelessWidget {
         Positioned(
             left: .042 * w,
             top: .105 * h,
-            child: Text('CARTE CADEAU', style: _lato(7.7 * cqw, letterSpacing: .01))),
+            child: Text('CARTE CADEAU',
+                style: _lato(7.7 * cqw, letterSpacing: .01))),
         Positioned(
           left: .044 * w,
           top: .40 * h,
@@ -271,7 +289,8 @@ class GiftCardFace extends StatelessWidget {
               SizedBox(width: 1.2 * cqw),
               Padding(
                 padding: EdgeInsets.only(top: .6 * cqw),
-                child: Text('FCFA', style: _lato(7.7 * cqw, letterSpacing: .01)),
+                child:
+                    Text('FCFA', style: _lato(7.7 * cqw, letterSpacing: .01)),
               ),
             ],
           ),
@@ -293,12 +312,14 @@ class GiftCardFace extends StatelessWidget {
             right: .03 * w,
             top: .03 * h,
             child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 2 * cqw, vertical: .7 * cqw),
+              padding:
+                  EdgeInsets.symmetric(horizontal: 2 * cqw, vertical: .7 * cqw),
               decoration: BoxDecoration(
                   color: const Color(0xEBFFFFFF),
                   borderRadius: BorderRadius.circular(99)),
               child: Text(stateLabel!,
-                  style: _lato(2.4 * cqw, weight: FontWeight.w700, letterSpacing: .06)
+                  style: _lato(2.4 * cqw,
+                          weight: FontWeight.w700, letterSpacing: .06)
                       .copyWith(color: const Color(0xFF333333))),
             ),
           ),
@@ -310,6 +331,297 @@ class GiftCardFace extends StatelessWidget {
     }
     return face;
   }
+}
+
+/// Gift card back, as on the printed sheet: "CARTE CADEAU", a white box
+/// with the Code 128 barcode and "N° : …", the conditions of use and a
+/// faded gift.
+class GiftCardBack extends StatelessWidget {
+  const GiftCardBack({
+    super.key,
+    required this.amountXof,
+    required this.code,
+    this.maxWidth = 440,
+  });
+
+  final int amountXof;
+  final String code;
+  final double maxWidth;
+
+  static const conditions =
+      'Carte valable 1 an après activation. Utilisable dans tous les '
+      'showrooms de LO Multimédia et sur la plateforme en ligne. Non '
+      'remboursable. Pour consulter le solde, les conditions et en cas de '
+      'vol, veuillez visiter notre site www.lomultimedia.com.';
+
+  @override
+  Widget build(BuildContext context) {
+    final (g1, g2) = giftCardGradient(amountXof);
+    return _CardFrame(
+      maxWidth: maxWidth,
+      semanticsLabel: 'Verso de la carte cadeau, numéro $code',
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [g1, g2]),
+      ),
+      builder: (w, h, cqw) => [
+        Positioned.fill(
+            child: Opacity(
+                opacity: .16, child: CustomPaint(painter: _SwooshPainter()))),
+        Positioned(
+            left: .042 * w,
+            top: .08 * h,
+            child: Text('CARTE CADEAU',
+                style: _lato(4.2 * cqw, letterSpacing: .01))),
+        // White box: barcode + number.
+        Positioned(
+          left: .12 * w,
+          right: .12 * w,
+          top: .25 * h,
+          height: .34 * h,
+          child: Container(
+            padding:
+                EdgeInsets.fromLTRB(5 * cqw, 2.4 * cqw, 5 * cqw, 1.4 * cqw),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(2.4 * cqw),
+            ),
+            child: Column(children: [
+              Expanded(
+                child: BarcodeWidget(
+                  barcode: Barcode.code128(),
+                  data: code,
+                  drawText: false,
+                  color: const Color(0xFF111111),
+                ),
+              ),
+              SizedBox(height: .8 * cqw),
+              Text('N°: $code',
+                  style: _lato(3.6 * cqw)
+                      .copyWith(color: const Color(0xFF555555))),
+            ]),
+          ),
+        ),
+        Positioned(
+          left: .042 * w,
+          right: .26 * w,
+          top: .70 * h,
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text("CONDITIONS D'UTILISATION :",
+                style: _lato(2.2 * cqw, weight: FontWeight.w700)),
+            SizedBox(height: .4 * cqw),
+            Text(conditions, style: _lato(1.9 * cqw, weight: FontWeight.w400)),
+          ]),
+        ),
+        Positioned(
+            left: .80 * w,
+            top: .66 * h,
+            width: .16 * w,
+            child: Opacity(
+              opacity: .25,
+              child: AspectRatio(
+                  aspectRatio: 120 / 130,
+                  child: CustomPaint(painter: _GiftIconPainter())),
+            )),
+      ],
+    );
+  }
+}
+
+/// Gift card that turns over when tapped (front ↔ back with the barcode).
+class FlippableGiftCard extends StatelessWidget {
+  const FlippableGiftCard({
+    super.key,
+    required this.amountXof,
+    required this.code,
+    this.dimmed = false,
+    this.stateLabel,
+    this.maxWidth = 440,
+  });
+
+  final int amountXof;
+  final String code;
+  final bool dimmed;
+  final String? stateLabel;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context) => FlipCard(
+        front: GiftCardFace(
+            amountXof: amountXof,
+            dimmed: dimmed,
+            stateLabel: stateLabel,
+            maxWidth: maxWidth),
+        back:
+            GiftCardBack(amountXof: amountXof, code: code, maxWidth: maxWidth),
+      );
+}
+
+/// LO+ card that turns over when tapped (front ↔ back with the QR code).
+class FlippableLoyaltyCard extends StatelessWidget {
+  const FlippableLoyaltyCard({
+    super.key,
+    required this.cardNumber,
+    required this.memberName,
+    required this.points,
+    required this.tierCode,
+    this.blocked = false,
+    this.maxWidth = 440,
+  });
+
+  final String cardNumber;
+  final String memberName;
+  final int? points;
+  final String tierCode;
+  final bool blocked;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context) => FlipCard(
+        front: LoyaltyCardFace(
+            cardNumber: cardNumber,
+            memberName: memberName,
+            points: points,
+            tierCode: tierCode,
+            blocked: blocked,
+            maxWidth: maxWidth),
+        back: LoyaltyCardBack(
+            cardNumber: cardNumber, memberName: memberName, maxWidth: maxWidth),
+      );
+}
+
+/// Turns [front] over to [back] (3D flip) on each tap.
+class FlipCard extends StatefulWidget {
+  const FlipCard({super.key, required this.front, required this.back});
+  final Widget front;
+  final Widget back;
+  @override
+  State<FlipCard> createState() => _FlipCardState();
+}
+
+class _FlipCardState extends State<FlipCard>
+    with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 450));
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _flip() => _controller.isCompleted || _controller.velocity > 0
+      ? _controller.reverse()
+      : _controller.forward();
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        hint: 'Toucher pour retourner la carte',
+        child: GestureDetector(
+          // The whole card reacts, not only its texts and drawings.
+          behavior: HitTestBehavior.opaque,
+          onTap: _flip,
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) {
+              final angle =
+                  Curves.easeInOut.transform(_controller.value) * math.pi;
+              final showBack = angle > math.pi / 2;
+              return Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.identity()
+                  ..setEntry(3, 2, 0.0012)
+                  ..rotateY(angle),
+                child: showBack
+                    // Mirrored once more so the back reads normally.
+                    ? Transform(
+                        alignment: Alignment.center,
+                        transform: Matrix4.rotationY(math.pi),
+                        child: widget.back)
+                    : widget.front,
+              );
+            },
+          ),
+        ),
+      );
+}
+
+/// LO+ card back: same background, a white box with the card's QR code and
+/// number, and the programme's conditions.
+class LoyaltyCardBack extends StatelessWidget {
+  const LoyaltyCardBack({
+    super.key,
+    required this.cardNumber,
+    required this.memberName,
+    this.maxWidth = 440,
+  });
+
+  final String cardNumber;
+  final String memberName;
+  final double maxWidth;
+
+  static const conditions =
+      'Carte personnelle LO+ : présentez-la ou son QR code en caisse pour '
+      'cumuler et utiliser vos points dans tous les showrooms LO Multimédia '
+      'et en ligne. En cas de perte ou de vol : www.lomultimedia.com.';
+
+  @override
+  Widget build(BuildContext context) => _CardFrame(
+        maxWidth: maxWidth,
+        semanticsLabel: 'Verso de la carte LO+, numéro $cardNumber',
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+              image: AssetImage('assets/lo-plus/fond-carte-fidelite.jpg'),
+              fit: BoxFit.cover),
+        ),
+        builder: (w, h, cqw) => [
+          Positioned(
+            left: .05 * w,
+            top: .30 * h,
+            width: .30 * w,
+            height: .30 * w,
+            child: Container(
+              padding: EdgeInsets.all(1.6 * cqw),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(2 * cqw),
+              ),
+              child: QrImageView(
+                data: 'LOPLUS:${cardNumber.replaceAll(' ', '')}',
+                padding: EdgeInsets.zero,
+                backgroundColor: Colors.white,
+              ),
+            ),
+          ),
+          Positioned(
+            left: .40 * w,
+            right: .05 * w,
+            top: .31 * h,
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('N° DE CARTE', style: _lato(2.6 * cqw, letterSpacing: .04)),
+              Text(cardNumber, style: _lato(5 * cqw, letterSpacing: .02)),
+              SizedBox(height: 1.4 * cqw),
+              Text('TITULAIRE', style: _lato(2.6 * cqw, letterSpacing: .04)),
+              Text(memberName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _lato(3.8 * cqw)),
+            ]),
+          ),
+          Positioned(
+            left: .05 * w,
+            right: .05 * w,
+            top: .80 * h,
+            child: Text(conditions,
+                style: _lato(2 * cqw, weight: FontWeight.w400)),
+          ),
+        ],
+      );
 }
 
 /// The four thin lines of the site's swoosh (viewBox 160×100, stretched).
@@ -324,7 +636,8 @@ class _SwooshPainter extends CustomPainter {
     void curve(List<double> p) => canvas.drawPath(
         Path()
           ..moveTo(p[0] * sx, p[1] * sy)
-          ..cubicTo(p[2] * sx, p[3] * sy, p[4] * sx, p[5] * sy, p[6] * sx, p[7] * sy),
+          ..cubicTo(
+              p[2] * sx, p[3] * sy, p[4] * sx, p[5] * sy, p[6] * sx, p[7] * sy),
         paint);
     curve([60, 100, 90, 70, 130, 40, 160, 10]);
     curve([85, 100, 110, 75, 140, 60, 160, 50]);
@@ -349,8 +662,8 @@ class _GiftIconPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
     canvas.drawRRect(
-        RRect.fromRectAndRadius(const Rect.fromLTWH(6, 38, 108, 26),
-            const Radius.circular(8)),
+        RRect.fromRectAndRadius(
+            const Rect.fromLTWH(6, 38, 108, 26), const Radius.circular(8)),
         paint);
     canvas.drawLine(const Offset(14, 64), const Offset(14, 126), paint);
     canvas.drawLine(const Offset(106, 64), const Offset(106, 126), paint);
@@ -384,6 +697,10 @@ ColorFilter _grayscale(double g, double b) {
     ...row(r + (1 - r) * (1 - g), gr - gr * (1 - g), bl - bl * (1 - g)),
     ...row(r - r * (1 - g), gr + (1 - gr) * (1 - g), bl - bl * (1 - g)),
     ...row(r - r * (1 - g), gr - gr * (1 - g), bl + (1 - bl) * (1 - g)),
-    0, 0, 0, 1, 0,
+    0,
+    0,
+    0,
+    1,
+    0,
   ]);
 }

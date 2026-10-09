@@ -45,6 +45,18 @@ class _ProductScreenState extends ConsumerState<ProductScreen> {
   int _quantity = 1;
   static const _maxQuantity = 99;
 
+  /// Cart line created by "Ajouter au panier", and the configuration it was
+  /// added with. The −/+ buttons then change that line's quantity; another
+  /// configuration (option, variant, add-on) shows "Ajouter" again.
+  String? _lineId;
+  String? _lineConfig;
+
+  String _configKey(ProductDetail product) => [
+        _effectiveVariant(product) ?? '',
+        ...(_addonIds.toList()..sort()),
+        for (final g in product.optionGroups) '${g.id}=${_choiceOf(g).id}',
+      ].join('|');
+
   @override
   void initState() {
     super.initState();
@@ -103,6 +115,18 @@ class _ProductScreenState extends ConsumerState<ProductScreen> {
             for (final g in product.optionGroups) g.id: _choiceOf(g).id,
           },
           quantity: _quantity);
+      // Find the cart line holding this configuration.
+      final cart = await ref.read(cartProvider.future);
+      final lines = cart.items.where((i) => i.productId == product.id);
+      if (lines.isNotEmpty && mounted) {
+        final config = _configKey(product);
+        final known =
+            lines.where((i) => i.id == _lineId && _lineConfig == config);
+        setState(() {
+          _lineId = known.isNotEmpty ? known.first.id : lines.last.id;
+          _lineConfig = config;
+        });
+      }
       return true;
     } catch (_) {
       if (mounted)
@@ -149,19 +173,40 @@ class _ProductScreenState extends ConsumerState<ProductScreen> {
         // bottom bar, snack bars appear above it instead of covering it.
         bottomNavigationBar: product == null
             ? null
-            : _BuyBar(
-                quantity: _quantity,
-                maxQuantity: _maxQuantity,
-                totalXof: _unitPrice(product) * _quantity,
-                inStock: _variant(product)?.inStock ?? product.inStock,
-                onQuantity: (q) => setState(() => _quantity = q),
-                onAdd: () async {
-                  if (await _addToCart(product) && context.mounted) {
-                    showAddedToCart(context);
-                  }
-                },
-                onSupport: () => _askSupport(product),
-              ),
+            : Builder(builder: (context) {
+                // Quantity of this configuration in the cart (null = not
+                // added yet, or removed from the cart since).
+                final line = _lineConfig == _configKey(product)
+                    ? ref
+                        .watch(cartProvider)
+                        .value
+                        ?.items
+                        .where((i) => i.id == _lineId)
+                        .firstOrNull
+                    : null;
+                final actions = ref.read(cartActionsProvider);
+                return _BuyBar(
+                  inCartQuantity: line?.quantity,
+                  maxQuantity: _maxQuantity,
+                  totalXof: _unitPrice(product) * (line?.quantity ?? 1),
+                  inStock: _variant(product)?.inStock ?? product.inStock,
+                  onIncrement: line == null
+                      ? null
+                      : () => actions.update(line.id, line.quantity + 1),
+                  onDecrement: line == null
+                      ? null
+                      : () => line.quantity > 1
+                          ? actions.update(line.id, line.quantity - 1)
+                          : actions.remove(line.id),
+                  onAdd: () async {
+                    if (await _addToCart(product) && context.mounted) {
+                      showAddedToCart(context);
+                    }
+                  },
+                  onViewCart: () => context.go('/panier'),
+                  onSupport: () => _askSupport(product),
+                );
+              }),
         body: SafeArea(
             bottom: false,
             child: Column(children: [
@@ -903,7 +948,9 @@ class _ReviewsHeader extends StatelessWidget {
                     children: [
                       for (var i = 1; i <= 5; i++)
                         Icon(
-                          i <= avgRating.round() ? Icons.star : Icons.star_border,
+                          i <= avgRating.round()
+                              ? Icons.star
+                              : Icons.star_border,
                           size: 15,
                           color: const Color(0xFFEDA830),
                         ),
@@ -1187,8 +1234,7 @@ class _ReviewCardState extends State<_ReviewCard> {
                 });
               },
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1203,10 +1249,10 @@ class _ReviewCardState extends State<_ReviewCard> {
                       'Utile ($_likesCount)',
                       style: TextStyle(
                         fontSize: 11,
-                        fontWeight:
-                            _liked ? FontWeight.w800 : FontWeight.w600,
-                        color:
-                            _liked ? AppColors.primary : AppColors.textSecondary,
+                        fontWeight: _liked ? FontWeight.w800 : FontWeight.w600,
+                        color: _liked
+                            ? AppColors.primary
+                            : AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -1229,26 +1275,35 @@ const shopUrl = 'https://lomultimedia.com';
 /// WhatsApp number of the shop (same as the site's contact page).
 const supportWhatsApp = '221779980404';
 
-/// Sticky bottom bar: quantity, live total, support and "Ajouter au panier".
+/// Sticky bottom bar. Before adding: total + "Ajouter au panier". Once in
+/// the cart: "− n +" (changes the cart quantity) + "Voir le panier".
 class _BuyBar extends StatelessWidget {
   const _BuyBar(
-      {required this.quantity,
+      {required this.inCartQuantity,
       required this.maxQuantity,
       required this.totalXof,
       required this.inStock,
-      required this.onQuantity,
+      required this.onIncrement,
+      required this.onDecrement,
       required this.onAdd,
+      required this.onViewCart,
       required this.onSupport});
-  final int quantity;
+
+  /// Quantity in the cart, or null when not added yet.
+  final int? inCartQuantity;
   final int maxQuantity;
   final int totalXof;
   final bool inStock;
-  final ValueChanged<int> onQuantity;
+  final VoidCallback? onIncrement;
+  final VoidCallback? onDecrement;
   final VoidCallback onAdd;
+  final VoidCallback onViewCart;
   final VoidCallback onSupport;
 
   @override
   Widget build(BuildContext context) {
+    final added = inCartQuantity != null;
+    final quantity = inCartQuantity ?? 0;
     return Material(
       color: AppColors.white,
       // Thin top border: separates the bar from the scrolling content.
@@ -1260,43 +1315,48 @@ class _BuyBar extends StatelessWidget {
               AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.sm),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Row(children: [
-              const Text('Quantité',
-                  style: TextStyle(fontWeight: FontWeight.w700)),
-              const SizedBox(width: AppSpacing.xs),
-              const SizedBox(width: AppSpacing.xs),
-              StepperButton.minus(
-                  tooltip: 'Diminuer la quantité',
-                  size: 32,
-                  onPressed:
-                      quantity > 1 ? () => onQuantity(quantity - 1) : null),
-              const SizedBox(width: AppSpacing.sm),
-              Semantics(
-                label: 'Quantité $quantity',
-                child: ExcludeSemantics(
-                  child: Text('$quantity',
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w800)),
+              if (added) ...[
+                // Shown only once the product is in the cart.
+                const Text('Dans le panier',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(width: AppSpacing.sm),
+                StepperButton.minus(
+                    tooltip: quantity > 1
+                        ? 'Diminuer la quantité'
+                        : 'Retirer du panier',
+                    size: 32,
+                    onPressed: onDecrement),
+                const SizedBox(width: AppSpacing.sm),
+                Semantics(
+                  label: 'Quantité dans le panier $quantity',
+                  child: ExcludeSemantics(
+                    child: Text('$quantity',
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w800)),
+                  ),
                 ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              StepperButton.plus(
-                  tooltip: 'Augmenter la quantité',
-                  size: 32,
-                  onPressed: quantity < maxQuantity
-                      ? () => onQuantity(quantity + 1)
-                      : null),
-              const SizedBox(width: AppSpacing.sm),
+                const SizedBox(width: AppSpacing.sm),
+                StepperButton.plus(
+                    tooltip: 'Augmenter la quantité',
+                    size: 32,
+                    onPressed: quantity < maxQuantity ? onIncrement : null),
+                const SizedBox(width: AppSpacing.sm),
+              ],
               Expanded(
                 child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                    crossAxisAlignment: added
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
                     children: [
-                      const Text('Prix total',
-                          style: TextStyle(
+                      Text(added ? 'Total' : 'Prix',
+                          style: const TextStyle(
                               color: AppColors.textSecondary, fontSize: 12)),
                       FittedBox(
                         fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerRight,
+                        alignment: added
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
                         child: Text(formatXof(totalXof),
                             style: const TextStyle(
                                 color: AppColors.danger,
@@ -1311,16 +1371,28 @@ class _BuyBar extends StatelessWidget {
               Expanded(
                 child: SizedBox(
                   height: 48,
-                  child: ElevatedButton.icon(
-                      onPressed: inStock ? onAdd : null,
-                      icon: const Icon(Icons.add_shopping_cart),
-                      label: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                            inStock ? 'Ajouter au panier' : 'Rupture de stock',
-                            style: const TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.w800)),
-                      )),
+                  child: added
+                      ? OutlinedButton.icon(
+                          onPressed: onViewCart,
+                          icon: const Icon(Icons.shopping_cart_checkout),
+                          label: const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text('Voir le panier',
+                                style: TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.w800)),
+                          ))
+                      : ElevatedButton.icon(
+                          onPressed: inStock ? onAdd : null,
+                          icon: const Icon(Icons.add_shopping_cart),
+                          label: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                                inStock
+                                    ? 'Ajouter au panier'
+                                    : 'Rupture de stock',
+                                style: const TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.w800)),
+                          )),
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),

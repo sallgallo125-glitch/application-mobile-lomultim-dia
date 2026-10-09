@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -16,7 +17,6 @@ import '../widgets/shimmer.dart' show shopGridColumnsFor;
 import '../widgets/error_state.dart';
 import '../widgets/loading_state.dart';
 import '../widgets/search_field.dart';
-import '../widgets/header_actions.dart';
 import 'photo_search_screen.dart' show startPhotoSearch;
 import '../widgets/nav_clearance.dart';
 
@@ -92,7 +92,7 @@ class _BoutiqueScreenState extends ConsumerState<BoutiqueScreen> {
           bottom: false,
           child: Column(children: [
             AppHeader(
-              title: 'Boutique',
+              title: '',
               onBack: ref.watch(shopOpenedFromHomeProvider)
                   ? () {
                       ref.read(shopOpenedFromHomeProvider.notifier).state =
@@ -108,10 +108,6 @@ class _BoutiqueScreenState extends ConsumerState<BoutiqueScreen> {
                     ref.read(globalSearchQueryProvider.notifier).state = value;
                     setState(() {});
                   }),
-              actions: [
-                notificationsHeaderAction(context, ref),
-                cartHeaderAction(context, ref),
-              ],
             ),
             if (loading)
               const LoadingState(
@@ -265,35 +261,42 @@ class _Content extends StatelessWidget {
       Expanded(
           child: products.isEmpty
               ? const _Empty()
-              : LayoutBuilder(builder: (context, constraints) {
-                  // 2 columns on phones, 3 on small tablets, 4 on large.
-                  final columns = shopGridColumnsFor(constraints.maxWidth);
-                  final textScale = MediaQuery.textScalerOf(context).scale(1);
-                  final tileWidth = (constraints.maxWidth -
-                          2 * AppSpacing.lg -
-                          (columns - 1) * AppSpacing.sm) /
-                      columns;
-                  return GridView.builder(
-                      padding: EdgeInsets.fromLTRB(
-                          AppSpacing.lg,
-                          AppSpacing.lg,
-                          AppSpacing.lg,
-                          AppSpacing.lg + navBarClearance(context)),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: columns,
-                          crossAxisSpacing: AppSpacing.sm,
-                          mainAxisSpacing: AppSpacing.sm,
-                          // Same card as the home rails: photo (~85 % of
-                          // the width) + text and "+ Ajouter" that grow
-                          // with the text scale.
-                          mainAxisExtent: tileWidth * .85 + 215 * textScale),
-                      itemCount: products.length,
-                      itemBuilder: (context, index) => ProductCardWidget(
-                          product: products[index],
-                          width: double.infinity,
-                          onPressed: (item) =>
-                              context.push('/produit/${item.id}')));
-                }))
+              : _BackToTop(
+                  builder: (controller) =>
+                      LayoutBuilder(builder: (context, constraints) {
+                        // 2 columns on phones, 3 on small tablets, 4 on large.
+                        final columns =
+                            shopGridColumnsFor(constraints.maxWidth);
+                        final textScale =
+                            MediaQuery.textScalerOf(context).scale(1);
+                        final tileWidth = (constraints.maxWidth -
+                                2 * AppSpacing.lg -
+                                (columns - 1) * AppSpacing.sm) /
+                            columns;
+                        return GridView.builder(
+                            controller: controller,
+                            padding: EdgeInsets.fromLTRB(
+                                AppSpacing.lg,
+                                AppSpacing.lg,
+                                AppSpacing.lg,
+                                AppSpacing.lg + navBarClearance(context)),
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: columns,
+                                    crossAxisSpacing: AppSpacing.sm,
+                                    mainAxisSpacing: AppSpacing.sm,
+                                    // Same card as the home rails: photo (~85 % of
+                                    // the width) + text and "+ Ajouter" that grow
+                                    // with the text scale.
+                                    mainAxisExtent:
+                                        tileWidth * .85 + 215 * textScale),
+                            itemCount: products.length,
+                            itemBuilder: (context, index) => ProductCardWidget(
+                                product: products[index],
+                                width: double.infinity,
+                                onPressed: (item) =>
+                                    context.push('/produit/${item.id}')));
+                      })))
     ]);
   }
 }
@@ -318,4 +321,92 @@ class _Empty extends StatelessWidget {
   @override
   Widget build(BuildContext context) => const Center(
       child: Text('Aucun produit ne correspond à votre recherche.'));
+}
+
+/// "Back to top" button over a scrolling list: it appears only while the
+/// customer scrolls UP (far enough from the top) and hides when scrolling
+/// down or back at the top.
+class _BackToTop extends StatefulWidget {
+  const _BackToTop({required this.builder});
+  final Widget Function(ScrollController controller) builder;
+  @override
+  State<_BackToTop> createState() => _BackToTopState();
+}
+
+class _BackToTopState extends State<_BackToTop> {
+  final _controller = ScrollController();
+  bool _visible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    final position = _controller.position;
+    final show = position.userScrollDirection == ScrollDirection.forward &&
+            position.pixels > 400 ||
+        (_visible &&
+            position.userScrollDirection == ScrollDirection.idle &&
+            position.pixels > 400);
+    if (show != _visible) setState(() => _visible = show);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Stack(children: [
+        widget.builder(_controller),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: AppSpacing.lg + navBarClearance(context),
+          child: Center(
+            child: IgnorePointer(
+              ignoring: !_visible,
+              child: AnimatedSlide(
+                offset: _visible ? Offset.zero : const Offset(0, 1.5),
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                child: AnimatedOpacity(
+                  opacity: _visible ? 1 : 0,
+                  duration: const Duration(milliseconds: 220),
+                  child: Material(
+                    color: AppColors.primaryDark,
+                    elevation: 4,
+                    shape: const StadiumBorder(),
+                    child: InkWell(
+                      customBorder: const StadiumBorder(),
+                      onTap: () {
+                        setState(() => _visible = false);
+                        _controller.animateTo(0,
+                            duration: const Duration(milliseconds: 450),
+                            curve: Curves.easeOutCubic);
+                      },
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(
+                            horizontal: AppSpacing.md, vertical: 10),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.arrow_upward_rounded,
+                              size: 18, color: Colors.white),
+                          SizedBox(width: 6),
+                          Text('Haut de page',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700)),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ]);
 }

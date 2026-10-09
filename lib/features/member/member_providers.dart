@@ -64,12 +64,16 @@ class GiftCardActions {
       {required int amountXof,
       required GiftCardDelivery delivery,
       required String recipientName,
-      String? message}) async {
+      String? message,
+      String? buyerName,
+      String? buyerPhone}) async {
     final card = await ref.read(giftCardRepositoryProvider).buy(
         amountXof: amountXof,
         delivery: delivery,
         recipientName: recipientName,
-        message: message);
+        message: message,
+        buyerName: buyerName,
+        buyerPhone: buyerPhone);
     ref.invalidate(myGiftCardsProvider);
     return card;
   }

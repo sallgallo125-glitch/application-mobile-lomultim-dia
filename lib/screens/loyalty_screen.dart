@@ -64,14 +64,15 @@ class _LoyaltyContent extends StatelessWidget {
           Center(
             child: Consumer(builder: (context, ref, _) {
               final member = ref.watch(loyaltyMemberProvider).value;
-              return GestureDetector(
-                onTap: () => context.push('/lo/carte'),
-                child: LoyaltyCardFace(
-                  cardNumber: member?.cardNumber ?? '•••• •••• ••••',
-                  memberName: member?.holderName ?? '',
-                  points: member?.points ?? loyalty.points,
-                  tierCode: loyalty.tierCode,
-                ),
+              // Tap to turn the card over ("Ma carte" opens the QR page).
+              return FlippableLoyaltyCard(
+                cardNumber: member?.cardNumber ?? '•••• •••• ••••',
+                // The signed-in customer's name (the demo API returns a fixed one).
+                memberName: ref.watch(sessionUserProvider)?.name ??
+                    member?.holderName ??
+                    '',
+                points: member?.points ?? loyalty.points,
+                tierCode: loyalty.tierCode,
               );
             }),
           ),

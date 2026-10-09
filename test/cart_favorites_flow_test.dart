@@ -38,7 +38,7 @@ void main() {
     await tester.tap(addButton);
     await settle(tester);
     expect(find.text('Produit ajouté au panier'), findsOneWidget);
-    expect(find.text('Voir le panier'), findsOneWidget);
+    expect(find.text('Voir le panier'), findsWidgets);
     expect(cartBadge('1'), findsOneWidget, reason: 'badge du panier');
     // The confirmation closes by itself (it has an action, so it must not
     // persist).
@@ -46,8 +46,10 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('Produit ajouté au panier'), findsNothing);
 
-    // Twice → quantity 2, same line.
-    await tester.tap(addButton);
+    // Once added, "+" in the bar raises the cart quantity (same line).
+    expect(find.text('Dans le panier'), findsOneWidget);
+    expect(addButton, findsNothing);
+    await tester.tap(find.byTooltip('Augmenter la quantité'));
     await settle(tester);
     expect(cartBadge('2'), findsOneWidget);
 
@@ -106,28 +108,41 @@ void main() {
     expect(find.text('Filtres'), findsOneWidget);
     await tester.tap(find.text('Ajouter').first);
     await settle(tester);
-    expect(cartBadge('1'), findsOneWidget);
+    // The shop has no header cart any more: the bottom bar's tab counts it.
+    expect(find.bySemanticsLabel('Onglet panier, 1 article'), findsOneWidget);
     appRouter.go('/');
     await settle(tester);
   });
 
-  testWidgets('quantité choisie sur la fiche produit', (tester) async {
+  testWidgets('quantité visible seulement après l’ajout', (tester) async {
     tester.view.physicalSize = const Size(412, 915);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
         const ProviderScope(child: LoMultimediaApp(useGoogleFonts: false)));
-    await open(tester, '/produit/p-028'); // ramette A4: 3 cartons d'un coup
-    for (var i = 0; i < 2; i++) {
-      await tester.tap(find.byTooltip('Augmenter la quantité'));
-      await tester.pump(const Duration(milliseconds: 300));
-    }
-    // 3 × 19 500 FCFA (ramette, carton de 5)
-    expect(find.text('58 500 FCFA'), findsOneWidget);
-    expect(find.text('Prix total'), findsOneWidget);
+    await open(tester, '/produit/p-028'); // ramette A4, 19 500 FCFA
+    // Before adding: no −/+, just the price and "Ajouter au panier".
+    expect(find.byTooltip('Augmenter la quantité'), findsNothing);
+    expect(find.text('19 500 FCFA'), findsWidgets);
     await tester.tap(find.widgetWithText(ElevatedButton, 'Ajouter au panier'));
     await settle(tester);
+    // After: "Dans le panier − 1 +", then up to 3 cartons.
+    expect(find.text('Dans le panier'), findsOneWidget);
+    for (var i = 0; i < 2; i++) {
+      await tester.tap(find.byTooltip('Augmenter la quantité'));
+      await settle(tester);
+    }
     expect(cartBadge('3'), findsOneWidget);
+    expect(find.text('58 500 FCFA'), findsOneWidget);
+    // "−" down to 0 removes it: back to "Ajouter au panier".
+    for (var i = 0; i < 2; i++) {
+      await tester.tap(find.byTooltip('Diminuer la quantité'));
+      await settle(tester);
+    }
+    await tester.tap(find.byTooltip('Retirer du panier'));
+    await settle(tester);
+    expect(find.widgetWithText(ElevatedButton, 'Ajouter au panier'),
+        findsOneWidget);
     appRouter.go('/');
     await settle(tester);
   });

@@ -49,6 +49,8 @@ class _GiftCardScreenState extends ConsumerState<GiftCardScreen> {
   final _customAmount = TextEditingController();
   GiftCardDelivery _delivery = GiftCardDelivery.digitalWhatsapp;
   final _recipient = TextEditingController();
+  final _buyerName = TextEditingController();
+  final _buyerPhone = TextEditingController();
   final _message = TextEditingController();
   final _balanceCode = TextEditingController();
   String? _error;
@@ -59,6 +61,8 @@ class _GiftCardScreenState extends ConsumerState<GiftCardScreen> {
   void dispose() {
     _customAmount.dispose();
     _recipient.dispose();
+    _buyerName.dispose();
+    _buyerPhone.dispose();
     _message.dispose();
     _balanceCode.dispose();
     super.dispose();
@@ -69,8 +73,13 @@ class _GiftCardScreenState extends ConsumerState<GiftCardScreen> {
       : 0;
 
   Future<void> _buy() async {
-    if (!ref.read(signedInProvider)) {
-      context.push('/connexion');
+    // Without an account the buyer gives a name and phone (no redirect).
+    final guest = !ref.read(signedInProvider);
+    if (guest &&
+        (_buyerName.text.trim().length < 2 ||
+            _buyerPhone.text.replaceAll(RegExp(r'\D'), '').length < 9)) {
+      setState(() => _error =
+          'Indiquez votre nom et votre téléphone (acheteur de la carte).');
       return;
     }
     if (_amount < giftCardMinXof ||
@@ -93,25 +102,50 @@ class _GiftCardScreenState extends ConsumerState<GiftCardScreen> {
           amountXof: _amount,
           delivery: _delivery,
           recipientName: _recipient.text.trim(),
-          message: _message.text);
+          message: _message.text,
+          buyerName: guest ? _buyerName.text.trim() : null,
+          buyerPhone: guest ? _buyerPhone.text.trim() : null);
       if (!mounted) return;
       await showDialog<void>(
           context: context,
-          builder: (context) => AlertDialog(
-                title: const Text('Carte cadeau créée'),
-                content: SingleChildScrollView(
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    GiftCardFace(amountXof: card.initialXof, maxWidth: 320),
-                    const SizedBox(height: AppSpacing.md),
-                    Text(
-                        'Pour ${card.recipientName}\nCode : ${card.code}\n${_delivery.label}\n\nSimulation : aucun paiement réel.'),
-                  ]),
+          // A plain Dialog: AlertDialog measures its content's intrinsic
+          // width, which the card preview (LayoutBuilder) cannot provide.
+          builder: (context) => Dialog(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 360),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const Text('Carte cadeau créée',
+                              style: TextStyle(
+                                  fontSize: 20, fontWeight: FontWeight.w800)),
+                          const SizedBox(height: AppSpacing.md),
+                          FlippableGiftCard(
+                              amountXof: card.initialXof,
+                              code: card.code,
+                              maxWidth: 320),
+                          const SizedBox(height: AppSpacing.xs),
+                          const Text('Touchez la carte pour la retourner',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 12)),
+                          const SizedBox(height: AppSpacing.md),
+                          Text(
+                              'Pour ${card.recipientName}\nCode : ${card.code}\n${_delivery.label}\n\nSimulation : aucun paiement réel.'),
+                          const SizedBox(height: AppSpacing.sm),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('OK')),
+                          ),
+                        ]),
+                  ),
                 ),
-                actions: [
-                  TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('OK'))
-                ],
               ));
       _recipient.clear();
       _message.clear();
@@ -170,8 +204,9 @@ class _GiftCardScreenState extends ConsumerState<GiftCardScreen> {
             controller: _customAmount,
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            // Emptied field: back to the default amount (not the last digit).
             onChanged: (v) =>
-                setState(() => _amount = int.tryParse(v) ?? _amount),
+                setState(() => _amount = int.tryParse(v) ?? 50000),
             decoration: const InputDecoration(
                 labelText: 'Autre montant (FCFA)',
                 helperText: 'Multiple de 1 000',
@@ -190,6 +225,26 @@ class _GiftCardScreenState extends ConsumerState<GiftCardScreen> {
                   title: Text(d.label)),
           ]),
         ),
+        if (!ref.watch(signedInProvider)) ...[
+          const SizedBox(height: AppSpacing.sm),
+          const Text('Vous (acheteur)',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+              controller: _buyerName,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                  labelText: 'Votre nom', border: OutlineInputBorder())),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+              controller: _buyerPhone,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                  labelText: 'Votre téléphone',
+                  prefixText: '+221 ',
+                  border: OutlineInputBorder())),
+          const SizedBox(height: AppSpacing.md),
+        ],
         TextField(
             controller: _recipient,
             decoration: const InputDecoration(
@@ -275,8 +330,10 @@ class MyGiftCardsScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Center(
-                        child: GiftCardFace(
+                        // Tap to see the back (barcode, number).
+                        child: FlippableGiftCard(
                           amountXof: c.initialXof,
+                          code: c.code,
                           dimmed: !c.active,
                           stateLabel: c.active ? null : 'SUSPENDUE',
                           maxWidth: 400,

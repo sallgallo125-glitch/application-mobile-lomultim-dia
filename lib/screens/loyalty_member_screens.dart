@@ -15,6 +15,7 @@ import '../widgets/card_faces.dart';
 import '../widgets/error_state.dart';
 import '../widgets/loading_state.dart';
 import '../widgets/sub_page.dart';
+import '../features/account/account_providers.dart';
 
 /// Digital LO+ card with a QR code to show at the till (site: MemberQr).
 /// The token is short-lived, so it refreshes when it expires.
@@ -84,9 +85,12 @@ class _LoyaltyCardScreenState extends ConsumerState<LoyaltyCardScreen> {
               padding: const EdgeInsets.all(AppSpacing.lg),
               children: [
                 Center(
-                  child: LoyaltyCardFace(
+                  // Tap to see the back (QR code, number).
+                  child: FlippableLoyaltyCard(
                     cardNumber: m.cardNumber,
-                    memberName: m.holderName,
+                    // The signed-in customer's name (the demo API returns a fixed one).
+                    memberName:
+                        ref.watch(sessionUserProvider)?.name ?? m.holderName,
                     points: m.points,
                     tierCode: m.tierCode,
                   ),

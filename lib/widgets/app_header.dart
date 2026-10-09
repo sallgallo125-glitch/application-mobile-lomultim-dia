@@ -53,6 +53,9 @@ class AppHeader extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Title row skipped when it would be empty (search field only).
+            if (title.isNotEmpty || onBack != null || showLogo ||
+                actions.isNotEmpty)
             Row(
               children: [
                 if (onBack != null) ...[
@@ -114,7 +117,9 @@ class AppHeader extends StatelessWidget {
               ],
             ),
             if (searchField != null) ...[
-              const SizedBox(height: AppSpacing.md),
+              if (title.isNotEmpty || onBack != null || showLogo ||
+                  actions.isNotEmpty)
+                const SizedBox(height: AppSpacing.md),
               searchField!,
             ],
           ],

@@ -97,10 +97,15 @@ class GiftCardRepository {
     required GiftCardDelivery delivery,
     required String recipientName,
     String? message,
+    String? buyerName,
+    String? buyerPhone,
   }) {
     const path = '/api/v1/gift-cards';
     return _data(
         _api.post(path, {
+          // Guest purchase: the buyer must be identified (spec §5.10.1).
+          if (buyerName != null) 'buyerName': buyerName,
+          if (buyerPhone != null) 'buyerPhone': buyerPhone,
           'amountXof': amountXof,
           'format': delivery.code,
           'recipientName': recipientName,

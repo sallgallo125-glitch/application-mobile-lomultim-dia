@@ -554,6 +554,16 @@ class MockMemberBackend {
     if (recipient.length < 2) {
       return _fail(422, 'VALIDATION_ERROR', 'Indiquez le nom du bénéficiaire.');
     }
+    final guest = body.containsKey('buyerName');
+    if (guest) {
+      final buyer = (body['buyerName'] as String? ?? '').trim();
+      final phone =
+          (body['buyerPhone'] as String? ?? '').replaceAll(RegExp(r'\D'), '');
+      if (buyer.length < 2 || phone.length < 9) {
+        return _fail(422, 'BUYER_REQUIRED',
+            'Indiquez votre nom et votre téléphone (acheteur).');
+      }
+    }
     _giftSeq++;
     final card = {
       'id': 'gc-$_giftSeq',
@@ -564,7 +574,8 @@ class MockMemberBackend {
       'status': 'ACTIVE',
       'expiresAt': 'Dans 12 mois',
       'recipientName': recipient,
-      'mine': true,
+      // Guest cards are not attached to the demo member's account.
+      'mine': !guest,
     };
     giftCards.add(card);
     return _ok(card, 201);

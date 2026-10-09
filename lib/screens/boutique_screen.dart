@@ -190,31 +190,128 @@ class _Content extends StatelessWidget {
     ];
   }
 
+  /// Category chips: scroll away with the products (not pinned).
+  Widget _categoryRow() {
+    final single =
+        filters.categoryIds.length == 1 ? filters.categoryIds.first : null;
+    return Container(
+        color: AppColors.white,
+        height: 56,
+        child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+            children: [
+              _Chip(
+                  label: 'Tout',
+                  selected: filters.categoryIds.isEmpty,
+                  onPressed: () =>
+                      onChanged(filters.copyWith(categoryIds: {}))),
+              for (final category in categories)
+                _Chip(
+                    label: category.name,
+                    selected: single == category.id,
+                    onPressed: () => onChanged(
+                        filters.copyWith(categoryIds: {category.id}))),
+            ]));
+  }
+
   @override
   Widget build(BuildContext context) {
     final chips = _activeChips();
-    final single =
-        filters.categoryIds.length == 1 ? filters.categoryIds.first : null;
-    return Column(children: [
-      SizedBox(
-          height: 56,
-          child: ListView(
+    // Pinned once it reaches the search bar: white, like the header.
+    final bar = DecoratedBox(
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        border: Border(bottom: BorderSide(color: AppColors.border)),
+      ),
+      child: _ShopBar(
+          categories: categories,
+          filters: filters,
+          onChanged: onChanged,
+          onOpenFilters: onOpenFilters),
+    );
+    final activeChips = chips.isEmpty
+        ? const SizedBox.shrink()
+        : SizedBox(
+            height: 48,
+            child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+                  horizontal: AppSpacing.lg, vertical: 4),
               children: [
-                _Chip(
-                    label: 'Tout',
-                    selected: filters.categoryIds.isEmpty,
-                    onPressed: () =>
-                        onChanged(filters.copyWith(categoryIds: {}))),
-                for (final category in categories)
-                  _Chip(
-                      label: category.name,
-                      selected: single == category.id,
-                      onPressed: () => onChanged(
-                          filters.copyWith(categoryIds: {category.id}))),
-              ])),
+                ...chips,
+                TextButton(
+                    onPressed: () => onChanged(filters.cleared()),
+                    child: const Text('Tout effacer')),
+              ],
+            ),
+          );
+    return products.isEmpty
+        ? Column(children: [
+            _categoryRow(),
+            bar,
+            activeChips,
+            const Expanded(child: _Empty()),
+          ])
+        : _BackToTop(
+            builder: (controller) =>
+                LayoutBuilder(builder: (context, constraints) {
+                  // 2 columns on phones, 3 on small tablets, 4 on large.
+                  final columns = shopGridColumnsFor(constraints.maxWidth);
+                  final textScale = MediaQuery.textScalerOf(context).scale(1);
+                  final tileWidth = (constraints.maxWidth -
+                          2 * AppSpacing.lg -
+                          (columns - 1) * AppSpacing.sm) /
+                      columns;
+                  return CustomScrollView(controller: controller, slivers: [
+                    // Categories scroll away; the filter bar sticks
+                    // under the search.
+                    SliverToBoxAdapter(child: _categoryRow()),
+                    PinnedHeaderSliver(child: bar),
+                    SliverToBoxAdapter(child: activeChips),
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(
+                          AppSpacing.lg,
+                          AppSpacing.md,
+                          AppSpacing.lg,
+                          AppSpacing.lg + navBarClearance(context)),
+                      sliver: SliverGrid(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: columns,
+                            crossAxisSpacing: AppSpacing.sm,
+                            mainAxisSpacing: AppSpacing.sm,
+                            // Same card as the home rails.
+                            mainAxisExtent: tileWidth * .85 + 215 * textScale),
+                        delegate: SliverChildBuilderDelegate(
+                            (context, index) => ProductCardWidget(
+                                product: products[index],
+                                width: double.infinity,
+                                onPressed: (item) =>
+                                    context.push('/produit/${item.id}')),
+                            childCount: products.length),
+                      ),
+                    ),
+                  ]);
+                }));
+  }
+}
+
+/// Filter/sort row, pinned under the search while the products scroll.
+class _ShopBar extends StatelessWidget {
+  const _ShopBar(
+      {required this.categories,
+      required this.filters,
+      required this.onChanged,
+      required this.onOpenFilters});
+  final List<Category> categories;
+  final ShopFilterState filters;
+  final ValueChanged<ShopFilterState> onChanged;
+  final VoidCallback onOpenFilters;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(mainAxisSize: MainAxisSize.min, children: [
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
         child: Row(children: [
@@ -243,60 +340,7 @@ class _Content extends StatelessWidget {
           ),
         ]),
       ),
-      if (chips.isNotEmpty)
-        SizedBox(
-          height: 48,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg, vertical: 4),
-            children: [
-              ...chips,
-              TextButton(
-                  onPressed: () => onChanged(filters.cleared()),
-                  child: const Text('Tout effacer')),
-            ],
-          ),
-        ),
-      Expanded(
-          child: products.isEmpty
-              ? const _Empty()
-              : _BackToTop(
-                  builder: (controller) =>
-                      LayoutBuilder(builder: (context, constraints) {
-                        // 2 columns on phones, 3 on small tablets, 4 on large.
-                        final columns =
-                            shopGridColumnsFor(constraints.maxWidth);
-                        final textScale =
-                            MediaQuery.textScalerOf(context).scale(1);
-                        final tileWidth = (constraints.maxWidth -
-                                2 * AppSpacing.lg -
-                                (columns - 1) * AppSpacing.sm) /
-                            columns;
-                        return GridView.builder(
-                            controller: controller,
-                            padding: EdgeInsets.fromLTRB(
-                                AppSpacing.lg,
-                                AppSpacing.lg,
-                                AppSpacing.lg,
-                                AppSpacing.lg + navBarClearance(context)),
-                            gridDelegate:
-                                SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: columns,
-                                    crossAxisSpacing: AppSpacing.sm,
-                                    mainAxisSpacing: AppSpacing.sm,
-                                    // Same card as the home rails: photo (~85 % of
-                                    // the width) + text and "+ Ajouter" that grow
-                                    // with the text scale.
-                                    mainAxisExtent:
-                                        tileWidth * .85 + 215 * textScale),
-                            itemCount: products.length,
-                            itemBuilder: (context, index) => ProductCardWidget(
-                                product: products[index],
-                                width: double.infinity,
-                                onPressed: (item) =>
-                                    context.push('/produit/${item.id}')));
-                      })))
+      const SizedBox(height: AppSpacing.xs),
     ]);
   }
 }
@@ -377,8 +421,9 @@ class _BackToTopState extends State<_BackToTop> {
                   opacity: _visible ? 1 : 0,
                   duration: const Duration(milliseconds: 220),
                   child: Material(
-                    color: AppColors.primaryDark,
-                    elevation: 4,
+                    // See-through background; the text stays fully readable.
+                    color: AppColors.primaryDark.withValues(alpha: .65),
+                    elevation: 0,
                     shape: const StadiumBorder(),
                     child: InkWell(
                       customBorder: const StadiumBorder(),

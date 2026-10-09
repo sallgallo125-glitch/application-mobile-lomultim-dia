@@ -258,10 +258,14 @@ class MockMemberBackend {
 
   // ---- Gift cards ----
   int _giftSeq = 3;
+  // Serial numbers: E00001… for digital cards, 0001… for physical ones.
+  int _digitalSerial = 2;
+  int _physicalSerial = 0;
   final List<Map<String, dynamic>> giftCards = [
     {
       'id': 'gc-1',
       'code': 'LOGC-4821-7730',
+      'serial': 'E00001',
       'initialXof': 50000,
       'balanceXof': 32000,
       'status': 'ACTIVE',
@@ -272,6 +276,7 @@ class MockMemberBackend {
     {
       'id': 'gc-2',
       'code': 'LOGC-1190-5504',
+      'serial': 'E00002',
       'initialXof': 100000,
       'balanceXof': 100000,
       'status': 'ACTIVE',
@@ -565,10 +570,15 @@ class MockMemberBackend {
       }
     }
     _giftSeq++;
+    final physical = (body['delivery'] as String? ?? '').startsWith('PHYSICAL');
+    final serial = physical
+        ? (++_physicalSerial).toString().padLeft(4, '0')
+        : 'E${(++_digitalSerial).toString().padLeft(5, '0')}';
     final card = {
       'id': 'gc-$_giftSeq',
       'code':
           'LOGC-${(3000 + _giftSeq * 137) % 9000 + 1000}-${(5000 + _giftSeq * 911) % 9000 + 1000}',
+      'serial': serial,
       'initialXof': amount,
       'balanceXof': amount,
       'status': 'ACTIVE',

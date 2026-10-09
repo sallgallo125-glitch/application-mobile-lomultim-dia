@@ -126,6 +126,7 @@ class _GiftCardScreenState extends ConsumerState<GiftCardScreen> {
                           FlippableGiftCard(
                               amountXof: card.initialXof,
                               code: card.code,
+                              serial: card.serial,
                               maxWidth: 320),
                           const SizedBox(height: AppSpacing.xs),
                           const Text('Touchez la carte pour la retourner',
@@ -334,6 +335,7 @@ class MyGiftCardsScreen extends ConsumerWidget {
                         child: FlippableGiftCard(
                           amountXof: c.initialXof,
                           code: c.code,
+                          serial: c.serial,
                           dimmed: !c.active,
                           stateLabel: c.active ? null : 'SUSPENDUE',
                           maxWidth: 400,

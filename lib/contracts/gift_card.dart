@@ -15,7 +15,8 @@ enum GiftCardDelivery {
   digitalEmail('DIGITAL_EMAIL', 'Carte numérique envoyée par e-mail'),
   digitalWhatsapp('DIGITAL_WHATSAPP', 'Carte numérique envoyée par WhatsApp'),
   physicalShowroom('PHYSICAL_SHOWROOM', 'Carte physique à retirer en showroom'),
-  physicalHome('PHYSICAL_HOME', 'Carte physique livrée à domicile (+2 500 FCFA)');
+  physicalHome(
+      'PHYSICAL_HOME', 'Carte physique livrée à domicile (+2 500 FCFA)');
 
   const GiftCardDelivery(this.code, this.label);
   final String code;
@@ -31,9 +32,14 @@ class GiftCard {
     required this.status,
     required this.expiresAt,
     this.recipientName,
+    this.serial,
   });
   final String id;
   final String code;
+
+  /// Short number printed under the barcode: "0028" (physical card) or
+  /// "E00004" (digital card).
+  final String? serial;
   final int initialXof;
   final int balanceXof;
 
@@ -52,6 +58,7 @@ class GiftCard {
         status: json['status'] as String,
         expiresAt: json['expiresAt'] as String,
         recipientName: json['recipientName'] as String?,
+        serial: json['serial'] as String?,
       );
 }
 

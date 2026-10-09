@@ -341,11 +341,17 @@ class GiftCardBack extends StatelessWidget {
     super.key,
     required this.amountXof,
     required this.code,
+    this.serial,
     this.maxWidth = 440,
   });
 
   final int amountXof;
+
+  /// Encoded in the barcode.
   final String code;
+
+  /// Printed under the barcode ("0028", "E00004"); the code when missing.
+  final String? serial;
   final double maxWidth;
 
   static const conditions =
@@ -354,12 +360,14 @@ class GiftCardBack extends StatelessWidget {
       'remboursable. Pour consulter le solde, les conditions et en cas de '
       'vol, veuillez visiter notre site www.lomultimedia.com.';
 
+  // Positions and sizes from the site's printable card sheet (.gc-back).
   @override
   Widget build(BuildContext context) {
     final (g1, g2) = giftCardGradient(amountXof);
+    final number = serial ?? code;
     return _CardFrame(
       maxWidth: maxWidth,
-      semanticsLabel: 'Verso de la carte cadeau, numéro $code',
+      semanticsLabel: 'Verso de la carte cadeau, numéro $number',
       decoration: BoxDecoration(
         gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -370,62 +378,72 @@ class GiftCardBack extends StatelessWidget {
         Positioned.fill(
             child: Opacity(
                 opacity: .16, child: CustomPaint(painter: _SwooshPainter()))),
+        // Gift icon, faint and behind the texts.
         Positioned(
-            left: .042 * w,
-            top: .08 * h,
-            child: Text('CARTE CADEAU',
-                style: _lato(4.2 * cqw, letterSpacing: .01))),
-        // White box: barcode + number.
-        Positioned(
-          left: .12 * w,
-          right: .12 * w,
-          top: .25 * h,
-          height: .34 * h,
-          child: Container(
-            padding:
-                EdgeInsets.fromLTRB(5 * cqw, 2.4 * cqw, 5 * cqw, 1.4 * cqw),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(2.4 * cqw),
-            ),
-            child: Column(children: [
-              Expanded(
-                child: BarcodeWidget(
-                  barcode: Barcode.code128(),
-                  data: code,
-                  drawText: false,
-                  color: const Color(0xFF111111),
-                ),
-              ),
-              SizedBox(height: .8 * cqw),
-              Text('N°: $code',
-                  style: _lato(3.6 * cqw)
-                      .copyWith(color: const Color(0xFF555555))),
-            ]),
-          ),
-        ),
-        Positioned(
-          left: .042 * w,
-          right: .26 * w,
-          top: .70 * h,
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text("CONDITIONS D'UTILISATION :",
-                style: _lato(2.2 * cqw, weight: FontWeight.w700)),
-            SizedBox(height: .4 * cqw),
-            Text(conditions, style: _lato(1.9 * cqw, weight: FontWeight.w400)),
-          ]),
-        ),
-        Positioned(
-            left: .80 * w,
+            left: .748 * w,
             top: .66 * h,
-            width: .16 * w,
+            width: .21 * w,
             child: Opacity(
-              opacity: .25,
+              opacity: .16,
               child: AspectRatio(
                   aspectRatio: 120 / 130,
                   child: CustomPaint(painter: _GiftIconPainter())),
             )),
+        Positioned(
+            left: .046 * w,
+            top: .085 * h,
+            child: Text('CARTE CADEAU',
+                style: _lato(3.6 * cqw, letterSpacing: .01))),
+        // White box: barcode + serial number.
+        Positioned(
+          left: .12 * w,
+          top: .26 * h,
+          width: .76 * w,
+          height: .345 * h,
+          child: Container(
+            padding: EdgeInsets.fromLTRB(4 * cqw, 2 * cqw, 4 * cqw, 1.6 * cqw),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(2 * cqw),
+            ),
+            child: LayoutBuilder(
+              builder: (context, box) => Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: .76 * box.maxWidth,
+                      height: .58 * box.maxHeight,
+                      child: BarcodeWidget(
+                        barcode: Barcode.code128(),
+                        data: code,
+                        drawText: false,
+                        color: Colors.black,
+                      ),
+                    ),
+                    SizedBox(height: 1.2 * cqw),
+                    Text('N°: $number',
+                        style: _lato(3.6 * cqw, weight: FontWeight.w300)
+                            .copyWith(
+                                color: const Color(0xFF333333), height: 1)),
+                  ]),
+            ),
+          ),
+        ),
+        Positioned(
+          left: .046 * w,
+          top: .77 * h,
+          width: .71 * w,
+          child: Text.rich(
+            TextSpan(children: [
+              TextSpan(
+                  text: "CONDITIONS D'UTILISATION :\n",
+                  style: _lato(1.72 * cqw, weight: FontWeight.w700)),
+              const TextSpan(text: conditions),
+            ]),
+            style: _lato(1.72 * cqw, weight: FontWeight.w400)
+                .copyWith(height: 1.28),
+          ),
+        ),
       ],
     );
   }
@@ -437,6 +455,7 @@ class FlippableGiftCard extends StatelessWidget {
     super.key,
     required this.amountXof,
     required this.code,
+    this.serial,
     this.dimmed = false,
     this.stateLabel,
     this.maxWidth = 440,
@@ -444,6 +463,7 @@ class FlippableGiftCard extends StatelessWidget {
 
   final int amountXof;
   final String code;
+  final String? serial;
   final bool dimmed;
   final String? stateLabel;
   final double maxWidth;
@@ -455,8 +475,11 @@ class FlippableGiftCard extends StatelessWidget {
             dimmed: dimmed,
             stateLabel: stateLabel,
             maxWidth: maxWidth),
-        back:
-            GiftCardBack(amountXof: amountXof, code: code, maxWidth: maxWidth),
+        back: GiftCardBack(
+            amountXof: amountXof,
+            code: code,
+            serial: serial,
+            maxWidth: maxWidth),
       );
 }
 

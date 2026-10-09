@@ -9,9 +9,12 @@ void main() {
   testWidgets('verso : numéro et conditions', (tester) async {
     await tester.pumpWidget(const MaterialApp(
         home: Scaffold(
-            body: GiftCardBack(amountXof: 50000, code: 'LOGC-4821-7730'))));
-    expect(find.text('N°: LOGC-4821-7730'), findsOneWidget);
-    expect(find.textContaining('CONDITIONS'), findsOneWidget);
+            body: GiftCardBack(
+                amountXof: 50000, code: 'LOGC-4821-7730', serial: '0028'))));
+    // Short serial under the barcode, like the printed cards.
+    expect(find.text('N°:\u00A00028'), findsOneWidget);
+    expect(
+        find.textContaining('CONDITIONS', findRichText: true), findsOneWidget);
   });
 
   testWidgets('la carte se retourne au toucher', (tester) async {

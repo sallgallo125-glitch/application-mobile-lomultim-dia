@@ -5,11 +5,13 @@ import '../../api/api_client.dart';
 import '../../api/repositories/home_repository.dart';
 import '../../contracts/home.dart';
 import '../../mocks/mock_http_client.dart';
+import '../persistence.dart';
 
 /// route -> screen -> feature hook (provider) -> repository -> apiClient -> mock
 /// mirrors the RN app's mandatory layering (see DEVELOPMENT_RULES.md); a
 /// screen must never call ApiClient or the mock transport directly.
-final httpClientProvider = Provider<http.Client>((ref) => MockHttpClient());
+final httpClientProvider = Provider<http.Client>(
+    (ref) => MockHttpClient(persistence: ref.watch(localPersistenceProvider)));
 
 final apiClientProvider = Provider<ApiClient>((ref) {
   return ApiClient(client: ref.watch(httpClientProvider));

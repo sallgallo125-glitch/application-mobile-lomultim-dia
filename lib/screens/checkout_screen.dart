@@ -38,6 +38,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   /// LO+ points the customer chose to spend (1 point = 100 FCFA, 10 minimum).
   int pointsToUse = 0;
 
+  // Amounts of the last build, for the payment dialog: total, then what the
+  // points and the gift card cover, and the rest paid with [payment].
+  int _totalXof = 0;
+  int _usedPoints = 0;
+  int _pointsDiscountXof = 0;
+  int _giftAppliedXof = 0;
+  int _amountDueXof = 0;
+
   /// Gift card applied after a successful balance check.
   final giftCode = TextEditingController();
   final giftOtp = TextEditingController();
@@ -180,15 +188,36 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               )
             : Icon(icon, color: AppColors.primary, size: 36),
         title: Text(title),
-        content: Text('$body\n\nMode démonstration : aucun montant n’est '
-            'réellement débité.'),
+        content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Montant à payer avec ${payment.label} : '
+                  '${formatXof(_amountDueXof)}',
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w800)),
+              // What the points / gift card already cover.
+              if (_pointsDiscountXof > 0 || _giftAppliedXof > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                      '(Total ${formatXof(_totalXof)}'
+                      '${_pointsDiscountXof > 0 ? ' − $_usedPoints points LO+ (${formatXof(_pointsDiscountXof)})' : ''}'
+                      '${_giftAppliedXof > 0 ? ' − carte cadeau ${formatXof(_giftAppliedXof)}' : ''})',
+                      style: const TextStyle(
+                          color: AppColors.textSecondary, fontSize: 13)),
+                ),
+              const SizedBox(height: AppSpacing.md),
+              Text('$body\n\nMode démonstration : aucun montant n’est '
+                  'réellement débité.'),
+            ]),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Annuler')),
           ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Payer')),
+              child: Text('Payer ${formatXof(_amountDueXof)}')),
         ],
       ),
     );
@@ -206,7 +235,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
     // Wave / Orange Money / card: the customer confirms the payment first
     // (simulated until the operators' real APIs are connected).
-    if (payment.isOnline && !await _confirmOnlinePayment()) return;
+    // Nothing left to pay (points / gift card cover it all): no dialog.
+    if (payment.isOnline &&
+        _amountDueXof > 0 &&
+        !await _confirmOnlinePayment()) {
+      return;
+    }
     setState(() {
       sending = true;
       error = null;
@@ -217,7 +251,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           zoneId: zoneId,
           payment: payment.code,
           promoCode: appliedPromo,
-          pointsToUse: pointsToUse,
+          // The points actually used (clamped to the balance and the
+          // total), not the "maximum" placeholder from the cart.
+          pointsToUse: _usedPoints,
           giftCardCode: appliedGiftCode,
           giftCardOtp: appliedGiftCode == null ? null : giftOtp.text.trim(),
           name: name.text.trim(),
@@ -281,6 +317,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         ? 0
         : (giftBalanceXof < afterPoints ? giftBalanceXof : afterPoints);
     final amountDue = afterPoints - giftApplied;
+    _totalXof = totals.totalXof;
+    _usedPoints = usedPoints;
+    _pointsDiscountXof = pointsDiscount;
+    _giftAppliedXof = giftApplied;
+    _amountDueXof = amountDue;
     // Price of each delivery mode for this cart and zone.
     String feeLabel(DeliveryMethod m) {
       if (m == DeliveryMethod.pickup) return 'Gratuit';
@@ -436,6 +477,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         Text(usedPoints == 0
             ? 'Aucun point utilisé'
             : '$usedPoints points utilisés = −${formatXof(pointsDiscount)}'),
+        const SizedBox(height: AppSpacing.xs),
+        // The rest goes to the chosen payment method.
+        Text(
+            amountDue == 0
+                ? 'Commande entièrement payée avec vos points'
+                : 'Reste à payer avec ${payment.label} : ${formatXof(amountDue)}',
+            style: const TextStyle(
+                color: AppColors.primary, fontWeight: FontWeight.w800)),
       ],
       const SizedBox(height: AppSpacing.md),
       // Promo code and gift card are folded: few customers have one.

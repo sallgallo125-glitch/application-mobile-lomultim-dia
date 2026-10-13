@@ -32,6 +32,25 @@ class AccountSummary {
           LoyaltySummary.fromJson(json['loyalty'] as Map<String, dynamic>));
 }
 
+class OrderLineSummary {
+  const OrderLineSummary({
+    required this.name,
+    this.imageUrl,
+    this.categoryId,
+  });
+
+  final String name;
+  final String? imageUrl;
+  final String? categoryId;
+
+  factory OrderLineSummary.fromJson(Map<String, dynamic> json) =>
+      OrderLineSummary(
+        name: json['name'] as String,
+        imageUrl: json['imageUrl'] as String?,
+        categoryId: json['categoryId'] as String?,
+      );
+}
+
 class OrderSummary {
   const OrderSummary(
       {required this.id,
@@ -39,6 +58,8 @@ class OrderSummary {
       required this.createdAt,
       required this.status,
       required this.totalXof,
+      this.items = const [],
+      this.deliveryInfo,
       this.pointsToEarn = 0,
       this.pointsDiscountXof = 0,
       this.giftCardAppliedXof = 0,
@@ -54,6 +75,8 @@ class OrderSummary {
   final String createdAt;
   final String status;
   final int totalXof;
+  final List<OrderLineSummary> items;
+  final String? deliveryInfo;
 
   /// LO+ points credited for this order (computed by the server).
   final int pointsToEarn;
@@ -79,6 +102,11 @@ class OrderSummary {
       createdAt: json['createdAt'] as String,
       status: json['status'] as String,
       totalXof: (json['totalXof'] as num).toInt(),
+      items: (json['items'] as List<dynamic>? ?? const [])
+          .map((item) =>
+              OrderLineSummary.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      deliveryInfo: json['deliveryInfo'] as String?,
       pointsToEarn: (json['pointsToEarn'] as num?)?.toInt() ?? 0,
       pointsDiscountXof: (json['pointsDiscountXof'] as num?)?.toInt() ?? 0,
       giftCardAppliedXof: (json['giftCardAppliedXof'] as num?)?.toInt() ?? 0,

@@ -200,7 +200,7 @@ class _ProductScreenState extends ConsumerState<ProductScreen> {
                           : actions.remove(line.id),
                   onAdd: () async {
                     if (await _addToCart(product) && context.mounted) {
-                      showAddedToCart(context);
+                      showAddedToCart(context, product.name);
                     }
                   },
                   onViewCart: () => context.go('/panier'),

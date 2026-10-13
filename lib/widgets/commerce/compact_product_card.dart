@@ -334,7 +334,7 @@ class _AddMiniState extends ConsumerState<_AddMini> {
     setState(() => _busy = true);
     try {
       await ref.read(cartActionsProvider).add(widget.product.id);
-      if (mounted) showAddedToCart(context);
+      if (mounted) showAddedToCart(context, widget.product.name);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(

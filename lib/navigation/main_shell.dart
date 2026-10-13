@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../widgets/header_actions.dart' show cartCountProvider;
-import '../screens/boutique_screen.dart' show shopOpenedFromHomeProvider;
+import '../screens/boutique_screen.dart'
+    show shopNavBarHiddenProvider, shopOpenedFromHomeProvider;
 import '../theme/tokens.dart';
 
 /// Tabs of the bottom bar (filled icons, like the reference design).
@@ -18,25 +19,40 @@ const _tabs = [
 /// Index of the "Panier" tab (carries the item-count badge).
 const _cartTab = 2;
 
-class MainShell extends StatelessWidget {
+/// Index of the "Boutique" tab (the bar hides while its products scroll).
+const _shopTab = 1;
+
+class MainShell extends ConsumerWidget {
   const MainShell({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hidden = navigationShell.currentIndex == _shopTab &&
+        ref.watch(shopNavBarHiddenProvider);
     return Scaffold(
       body: navigationShell,
-      bottomNavigationBar: _BottomBar(
-        currentIndex: navigationShell.currentIndex,
-        onSelect: (index) {
-          // Opened from the bottom bar: the shop shows no back button.
-          ProviderScope.containerOf(context)
-              .read(shopOpenedFromHomeProvider.notifier)
-              .state = false;
-          navigationShell.goBranch(index,
-              initialLocation: index == navigationShell.currentIndex);
-        },
+      // Slides down (and frees its height) while the shop scrolls down.
+      bottomNavigationBar: ClipRect(
+        child: AnimatedAlign(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          heightFactor: hidden ? 0 : 1,
+          child: _BottomBar(
+            currentIndex: navigationShell.currentIndex,
+            onSelect: (index) {
+              ref.read(shopNavBarHiddenProvider.notifier).state = false;
+              // Opened from the bottom bar: the shop shows no back button.
+              ProviderScope.containerOf(context)
+                  .read(shopOpenedFromHomeProvider.notifier)
+                  .state = false;
+              navigationShell.goBranch(index,
+                  initialLocation: index == navigationShell.currentIndex);
+            },
+          ),
+        ),
       ),
     );
   }

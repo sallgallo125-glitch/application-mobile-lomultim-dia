@@ -72,10 +72,11 @@ void main() {
     await settle();
     await tester.tap(find.widgetWithText(ElevatedButton, 'Ajouter au panier'));
     await settle();
-    appRouter.go('/panier');
+    await tester.tap(find.descendant(
+        of: find.byType(SnackBar), matching: find.text('Voir le panier')));
     await settle();
     expect(find.text('Utiliser mes points LO+'), findsNothing);
-    await tester.tap(find.text('Passer commande →'));
+    await tester.tap(find.text('Continuer la commande'));
     await settle();
 
     // Step 1: contact details typed by the guest, pick-up in showroom.
@@ -114,7 +115,8 @@ void main() {
     expect(guestOrders, hasLength(1));
 
     // Track the order with its number + phone (pre-filled).
-    final trackButton = find.widgetWithText(OutlinedButton, 'Suivre ma commande');
+    final trackButton =
+        find.widgetWithText(OutlinedButton, 'Suivre ma commande');
     await tester.scrollUntilVisible(trackButton, 200,
         scrollable: find.byType(Scrollable).last);
     await tester.tap(trackButton);

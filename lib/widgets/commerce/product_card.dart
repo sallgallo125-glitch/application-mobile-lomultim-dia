@@ -231,6 +231,7 @@ class _ProductCardWidgetState extends State<ProductCardWidget> {
                     const SizedBox(height: AppSpacing.sm),
                     QuickAddButton(
                         productId: product.id,
+                        productName: product.name,
                         inStock: product.inStock,
                         fullWidth: true),
                   ],

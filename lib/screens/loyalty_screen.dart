@@ -24,7 +24,7 @@ class LoyaltyScreen extends ConsumerWidget {
         body: SafeArea(
             bottom: false,
             child: Column(children: [
-              AppHeader(title: 'Lo+', subtitle: 'Programme de fidélité'),
+              const AppHeader(title: 'Lo+', subtitle: 'Programme de fidélité'),
               if (!signedIn)
                 Expanded(
                     child: Center(
@@ -76,23 +76,20 @@ class _LoyaltyContent extends StatelessWidget {
               );
             }),
           ),
+          const SizedBox(height: AppSpacing.lg),
+          _PointsSummary(points: loyalty.points),
           const SizedBox(height: AppSpacing.md),
-          Text(
-              '${loyalty.points} points · soit ${formatXof(loyalty.points * loyaltyPointValueXof)} à utiliser',
-              style:
-                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-          const SizedBox(height: AppSpacing.sm),
-          LinearProgressIndicator(
-              value: progress.clamp(0.0, 1.0).toDouble(),
-              color: AppColors.primary,
-              backgroundColor: AppColors.border),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-              next == null
-                  ? 'Palier ${tier.name} · vous êtes au palier le plus élevé'
-                  : 'Palier ${tier.name} · encore ${formatXof(next.minSpendXof - loyalty.spend12MonthsXof)} d\'achats sur 12 mois pour le palier ${next.name}',
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 12)),
+          _TierProgress(
+            currentTier: tier,
+            nextTier: next,
+            spend12MonthsXof: loyalty.spend12MonthsXof,
+            progress: progress.clamp(0.0, 1.0).toDouble(),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          const _LoyaltySectionTitle(
+            title: 'Vos avantages LO+',
+            subtitle: 'Accédez rapidement à vos services fidélité.',
+          ),
           const SizedBox(height: AppSpacing.md),
           GridView.count(
             crossAxisCount: MediaQuery.sizeOf(context).width >= 600 ? 5 : 3,
@@ -112,21 +109,45 @@ class _LoyaltyContent extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
-          const Text('Comment ça marche',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+          const _LoyaltySectionTitle(
+            title: 'Comment ça marche',
+            subtitle: 'Les règles pour gagner et utiliser vos points.',
+          ),
           const SizedBox(height: AppSpacing.sm),
-          _Rule('1', '1 point par tranche de ${formatXof(loyaltyTrancheXof)}',
-              'Multiplié selon votre palier, en ligne comme en showroom'),
-          _Rule('2', '1 point = ${formatXof(loyaltyPointValueXof)}',
-              'Utilisable dès le panier, à partir de $loyaltyMinRedeemPoints points'),
-          const _Rule('3', 'Parrainage',
-              '50 points par filleul actif, 20 points pour le filleul'),
+          _HowItWorksStep(
+            number: '01',
+            icon: Icons.shopping_bag_outlined,
+            title: 'Gagnez des points',
+            description:
+                '1 point par tranche de ${formatXof(loyaltyTrancheXof)}, multiplié selon votre palier, en ligne comme en showroom.',
+          ),
+          _HowItWorksStep(
+            number: '02',
+            icon: Icons.redeem_outlined,
+            title: 'Utilisez vos points',
+            description:
+                '1 point = ${formatXof(loyaltyPointValueXof)} · utilisable dès le panier à partir de $loyaltyMinRedeemPoints points',
+          ),
+          const _HowItWorksStep(
+            number: '03',
+            icon: Icons.group_add_outlined,
+            title: 'Parrainez vos proches',
+            description:
+                '50 points par filleul actif et 20 points pour le filleul.',
+            isLast: true,
+          ),
           const SizedBox(height: AppSpacing.lg),
-          const Text('Les paliers',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+          const _LoyaltySectionTitle(
+            title: 'Les paliers',
+            subtitle: 'Découvrez les avantages associés à chaque niveau.',
+          ),
           const SizedBox(height: AppSpacing.sm),
-          for (final t in loyaltyTiers)
-            _TierCard(tier: t, current: t.code == tier.code),
+          for (var index = 0; index < loyaltyTiers.length; index++)
+            _TierTimelineItem(
+              tier: loyaltyTiers[index],
+              current: loyaltyTiers[index].code == tier.code,
+              isLast: index == loyaltyTiers.length - 1,
+            ),
           const SizedBox(height: AppSpacing.sm),
           const Text(loyaltyRulesNote,
               style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
@@ -138,61 +159,430 @@ class _LoyaltyContent extends StatelessWidget {
   }
 }
 
-class _Rule extends StatelessWidget {
-  const _Rule(this.step, this.title, this.subtitle);
-  final String step;
-  final String title;
-  final String subtitle;
+class _PointsSummary extends StatelessWidget {
+  const _PointsSummary({required this.points});
+
+  final int points;
+
   @override
-  Widget build(BuildContext context) => Card(
-      child: ListTile(
-          leading: CircleAvatar(
-              backgroundColor: AppColors.primarySoft,
-              child: Text(step,
-                  style: const TextStyle(
-                      color: AppColors.primary, fontWeight: FontWeight.w800))),
-          title: Text(title),
-          subtitle: Text(subtitle)));
+  Widget build(BuildContext context) => Material(
+        color: AppColors.primarySoft,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+          onTap: () => context.push('/lo/echanger'),
+          child: Container(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadii.lg),
+              border:
+                  Border.all(color: AppColors.primary.withValues(alpha: .12)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                  ),
+                  child: const Icon(
+                    Icons.stars_rounded,
+                    color: AppColors.primaryDark,
+                    size: 25,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Votre solde LO+',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$points points',
+                        style: const TextStyle(
+                          color: AppColors.primaryDark,
+                          fontSize: 21,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        'Valeur : ${formatXof(points * loyaltyPointValueXof)}',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                const Icon(Icons.chevron_right_rounded,
+                    color: AppColors.primaryDark),
+              ],
+            ),
+          ),
+        ),
+      );
 }
 
-class _TierCard extends StatelessWidget {
-  const _TierCard({required this.tier, required this.current});
-  final LoyaltyTier tier;
-  final bool current;
+class _TierProgress extends StatelessWidget {
+  const _TierProgress({
+    required this.currentTier,
+    required this.nextTier,
+    required this.spend12MonthsXof,
+    required this.progress,
+  });
+
+  final LoyaltyTier currentTier;
+  final LoyaltyTier? nextTier;
+  final int spend12MonthsXof;
+  final double progress;
+
   @override
   Widget build(BuildContext context) => Card(
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadii.md),
-          side: BorderSide(
-              color: current ? AppColors.primary : Colors.transparent,
-              width: 2)),
-      child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Wrap(
-                spacing: AppSpacing.sm,
-                crossAxisAlignment: WrapCrossAlignment.center,
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Text(tier.name,
+                  const Expanded(
+                    child: Text(
+                      'Progression de votre palier',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.xs,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.goldOnDark.withValues(alpha: .35),
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    child: Text(
+                      currentTier.name,
                       style: const TextStyle(
-                          color: AppColors.primary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800)),
-                  if (current)
-                    const Text('Votre palier',
-                        style: TextStyle(
-                            color: AppColors.success,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700)),
-                ]),
-            Text(tier.thresholdLabel,
+                        color: AppColors.primaryDark,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 9,
+                  color: AppColors.primary,
+                  backgroundColor: AppColors.border,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                nextTier == null
+                    ? 'Vous avez atteint le palier le plus élevé.'
+                    : 'Encore ${formatXof((nextTier!.minSpendXof - spend12MonthsXof).clamp(0, nextTier!.minSpendXof))} d’achats sur 12 mois pour atteindre ${nextTier!.name}.',
                 style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12)),
-            const SizedBox(height: AppSpacing.xs),
-            for (final benefit in tier.benefits)
-              Text('• $benefit', style: const TextStyle(fontSize: 13)),
-          ])));
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+class _LoyaltySectionTitle extends StatelessWidget {
+  const _LoyaltySectionTitle({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style:
+                  const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            subtitle,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      );
+}
+
+class _HowItWorksStep extends StatelessWidget {
+  const _HowItWorksStep({
+    required this.number,
+    required this.icon,
+    required this.title,
+    required this.description,
+    this.isLast = false,
+  });
+
+  final String number;
+  final IconData icon;
+  final String title;
+  final String description;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: EdgeInsets.only(bottom: isLast ? 0 : AppSpacing.md),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: 28,
+                child: Column(
+                  children: [
+                    SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: Icon(
+                        icon,
+                        color: AppColors.textSecondary,
+                        size: 21,
+                      ),
+                    ),
+                    if (!isLast)
+                      Expanded(
+                        child: Container(
+                          width: 1,
+                          margin: const EdgeInsets.only(top: AppSpacing.xs),
+                          color: AppColors.border,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          number,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              color: AppColors.text,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      description,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+class _TierTimelineItem extends StatelessWidget {
+  const _TierTimelineItem({
+    required this.tier,
+    required this.current,
+    required this.isLast,
+  });
+
+  final LoyaltyTier tier;
+  final bool current;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) => IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: 32,
+              child: Column(
+                children: [
+                  Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: current ? AppColors.success : AppColors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: current
+                            ? AppColors.success
+                            : AppColors.textSecondary,
+                        width: 2,
+                      ),
+                    ),
+                    child: current
+                        ? const Icon(Icons.check, color: Colors.white, size: 14)
+                        : null,
+                  ),
+                  if (!isLast)
+                    Expanded(
+                      child: Container(
+                        width: 2,
+                        margin: const EdgeInsets.symmetric(vertical: 3),
+                        color: AppColors.border,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                child: Card(
+                  margin: EdgeInsets.zero,
+                  color: current
+                      ? AppColors.success.withValues(alpha: .08)
+                      : AppColors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                    side: BorderSide(
+                      color: current ? AppColors.success : AppColors.border,
+                      width: current ? 1.5 : 1,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                tier.name,
+                                style: const TextStyle(
+                                  color: AppColors.primaryDark,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            if (current)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.sm,
+                                  vertical: AppSpacing.xs,
+                                ),
+                                decoration: BoxDecoration(
+                                  color:
+                                      AppColors.success.withValues(alpha: .12),
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadii.pill),
+                                ),
+                                child: const Text(
+                                  'Votre palier',
+                                  style: TextStyle(
+                                    color: AppColors.success,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          tier.thresholdLabel,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        for (final benefit in tier.benefits)
+                          Padding(
+                            padding:
+                                const EdgeInsets.only(bottom: AppSpacing.xs),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.only(top: 3, right: 7),
+                                  child: Icon(
+                                    Icons.check_circle,
+                                    color: current
+                                        ? AppColors.success
+                                        : AppColors.textSecondary,
+                                    size: 14,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    benefit,
+                                    style: const TextStyle(
+                                      color: AppColors.text,
+                                      fontSize: 12,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _Shortcut extends StatelessWidget {
@@ -203,6 +593,11 @@ class _Shortcut extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Card(
       margin: EdgeInsets.zero,
+      color: AppColors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        side: const BorderSide(color: AppColors.border),
+      ),
       child: InkWell(
           borderRadius: BorderRadius.circular(AppRadii.md),
           onTap: () => context.push(route),

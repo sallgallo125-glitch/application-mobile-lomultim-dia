@@ -34,46 +34,10 @@ class AccountScreen extends ConsumerWidget {
                         AppSpacing.lg,
                         AppSpacing.lg + navBarClearance(context)),
                     children: [
-                      Card(
-                        margin: EdgeInsets.zero,
-                        child: Padding(
-                          padding: const EdgeInsets.all(AppSpacing.lg),
-                          child: Column(
-                            children: [
-                              Image.asset('assets/images/logo.png',
-                                  height: 52),
-                              const SizedBox(height: AppSpacing.sm),
-                              const Text(
-                                'Bienvenue sur LoMultimedia',
-                                style: TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.w800),
-                              ),
-                              const SizedBox(height: AppSpacing.xs),
-                              const Text(
-                                'Connectez-vous pour retrouver vos achats et cumuler vos points LO+.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 13),
-                              ),
-                              const SizedBox(height: AppSpacing.md),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  onPressed: () => context.push('/connexion'),
-                                  child: const Text('Se connecter'),
-                                ),
-                              ),
-                              const SizedBox(height: AppSpacing.sm),
-                              SizedBox(
-                                width: double.infinity,
-                                child: OutlinedButton(
-                                  onPressed: () => context.push('/inscription'),
-                                  child: const Text('Créer un compte'),
-                                ),
-                              ),
-                            ],
-                          ),
+                      _Entrance(
+                        child: _GuestWelcomeCard(
+                          onSignIn: () => context.push('/connexion'),
+                          onRegister: () => context.push('/inscription'),
                         ),
                       ),
                       _MenuGroup(title: 'Achats & Suivi', items: [
@@ -128,41 +92,40 @@ class AccountScreen extends ConsumerWidget {
                                     AppSpacing.lg,
                                     AppSpacing.lg + navBarClearance(context)),
                                 children: [
-                              _Profile(
-                                  ref.watch(sessionUserProvider)?.name ??
+                              _Entrance(
+                                child: _AccountHero(
+                                  name: ref.watch(sessionUserProvider)?.name ??
                                       account.name,
-                                  ref.watch(sessionUserProvider)?.phone ??
-                                      account.phone,
-                                  loyaltyTierFor(account.loyalty.tierCode)
-                                      .name),
+                                  phone:
+                                      ref.watch(sessionUserProvider)?.phone ??
+                                          account.phone,
+                                  tier: loyaltyTierFor(account.loyalty.tierCode)
+                                      .name,
+                                  orders: '${account.ordersCount}',
+                                  points: '${account.loyalty.points}',
+                                ),
+                              ),
                               const SizedBox(height: AppSpacing.md),
-                              Card(
-                                  child: Padding(
-                                      padding:
-                                          const EdgeInsets.all(AppSpacing.md),
-                                      child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceAround,
-                                          children: [
-                                            _Stat('${account.ordersCount}',
-                                                'Commandes'),
-                                            _Stat('${account.loyalty.points}',
-                                                'Points Lo+'),
-                                            _Stat(
-                                                loyaltyTierFor(account
-                                                        .loyalty.tierCode)
-                                                    .name,
-                                                'Palier')
-                                          ]))),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _QuickAction(
+                                      icon: Icons.receipt_long_rounded,
+                                      label: 'Mes commandes',
+                                      onTap: () => context.push('/commandes'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: AppSpacing.sm),
+                                  Expanded(
+                                    child: _QuickAction(
+                                      icon: Icons.favorite_border_rounded,
+                                      label: 'Mes favoris',
+                                      onTap: () => context.push('/favoris'),
+                                    ),
+                                  ),
+                                ],
+                              ),
                               _MenuGroup(title: 'Mes achats', items: [
-                                _Menu(
-                                    icon: Icons.receipt_long_outlined,
-                                    label: 'Mes commandes',
-                                    onTap: () => context.push('/commandes')),
-                                _Menu(
-                                    icon: Icons.favorite_outline,
-                                    label: 'Mes favoris',
-                                    onTap: () => context.push('/favoris')),
                                 _Menu(
                                     icon: Icons.notifications_none,
                                     label: 'Notifications',
@@ -224,54 +187,322 @@ class AccountScreen extends ConsumerWidget {
   }
 }
 
-class _Profile extends StatelessWidget {
-  const _Profile(this.name, this.phone, this.level);
-  final String name;
-  final String phone;
-  final String level;
+class _GuestWelcomeCard extends StatelessWidget {
+  const _GuestWelcomeCard({required this.onSignIn, required this.onRegister});
+
+  final VoidCallback onSignIn;
+  final VoidCallback onRegister;
+
   @override
-  Widget build(BuildContext context) => Row(children: [
-        CircleAvatar(
-            radius: 28,
-            backgroundColor: AppColors.primary,
-            child: Text(name[0],
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 23,
-                    fontWeight: FontWeight.w800))),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style:
-                  const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-          Text('$phone · LO+ $level',
-              style: const TextStyle(color: AppColors.textSecondary))
-        ]))
-      ]);
+  Widget build(BuildContext context) => Card(
+        margin: EdgeInsets.zero,
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            children: [
+              Container(
+                width: 76,
+                height: 76,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                  color: AppColors.primarySoft,
+                  shape: BoxShape.circle,
+                ),
+                child: Image.asset('assets/images/logo.png', height: 46),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              const Text(
+                'Bienvenue sur LoMultimedia',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              const Text(
+                'Connectez-vous pour retrouver vos achats et cumuler vos points LO+.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    color: AppColors.textSecondary, fontSize: 13, height: 1.4),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: onSignIn,
+                  icon: const Icon(Icons.login_rounded),
+                  label: const Text('Se connecter'),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: onRegister,
+                  child: const Text('Créer un compte'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
 }
 
-class _Stat extends StatelessWidget {
-  const _Stat(this.value, this.label);
+class _Entrance extends StatelessWidget {
+  const _Entrance({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration:
+          reduceMotion ? Duration.zero : const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+      builder: (context, progress, child) => Opacity(
+        opacity: progress,
+        child: Transform.translate(
+          offset: Offset(0, 10 * (1 - progress)),
+          child: child,
+        ),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _AccountHero extends StatelessWidget {
+  const _AccountHero({
+    required this.name,
+    required this.phone,
+    required this.tier,
+    required this.orders,
+    required this.points,
+  });
+
+  final String name;
+  final String phone;
+  final String tier;
+  final String orders;
+  final String points;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [AppColors.primaryDark, AppColors.primary],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(AppRadii.xl),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x24434F9F),
+              blurRadius: 16,
+              offset: Offset(0, 7),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 27,
+                    backgroundColor: Colors.white.withValues(alpha: .18),
+                    child: Text(
+                      name.trim().isEmpty
+                          ? '?'
+                          : name.trim().characters.first.toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 23,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Bonjour,',
+                          style: TextStyle(color: Colors.white70, fontSize: 13),
+                        ),
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        Text(
+                          phone,
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+                    decoration: BoxDecoration(
+                      color: AppColors.goldOnDark.withValues(alpha: .18),
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                      border: Border.all(
+                          color: AppColors.goldOnDark.withValues(alpha: .5)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.workspace_premium_rounded,
+                            color: AppColors.goldOnDark, size: 16),
+                        const SizedBox(width: AppSpacing.xs),
+                        Text(
+                          tier,
+                          style: const TextStyle(
+                            color: AppColors.goldOnDark,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Row(
+                children: [
+                  Expanded(
+                    child: _HeroStat(value: orders, label: 'Commandes'),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: _HeroStat(value: points, label: 'Points LO+'),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: _HeroStat(value: tier, label: 'Palier'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+class _HeroStat extends StatelessWidget {
+  const _HeroStat({required this.value, required this.label});
+
   final String value;
   final String label;
+
   @override
-  Widget build(BuildContext context) => Expanded(
-          child: Column(children: [
-        Text(value,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-                color: AppColors.primary,
-                fontSize: 17,
-                fontWeight: FontWeight.w800)),
-        Text(label,
-            textAlign: TextAlign.center,
-            style:
-                const TextStyle(color: AppColors.textSecondary, fontSize: 11))
-      ]));
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xs,
+          vertical: AppSpacing.md,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: .12),
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          border: Border.all(color: Colors.white.withValues(alpha: .18)),
+        ),
+        child: Column(
+          children: [
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, fontSize: 11),
+            ),
+          ],
+        ),
+      );
+}
+
+class _QuickAction extends StatefulWidget {
+  const _QuickAction(
+      {required this.icon, required this.label, required this.onTap});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  State<_QuickAction> createState() => _QuickActionState();
+}
+
+class _QuickActionState extends State<_QuickAction> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = MediaQuery.of(context).disableAnimations
+        ? Duration.zero
+        : const Duration(milliseconds: 120);
+    return AnimatedScale(
+      scale: _pressed ? .97 : 1,
+      duration: duration,
+      curve: Curves.easeOutCubic,
+      child: Card(
+        margin: EdgeInsets.zero,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: widget.onTap,
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapUp: (_) => setState(() => _pressed = false),
+          onTapCancel: () => setState(() => _pressed = false),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm, vertical: AppSpacing.md),
+            child: Row(
+              children: [
+                Icon(widget.icon, color: AppColors.primaryDark, size: 22),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    widget.label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded,
+                    color: AppColors.textSecondary, size: 20),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// A titled card grouping related menu entries.
@@ -286,12 +517,16 @@ class _MenuGroup extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(
                 left: AppSpacing.xs, bottom: AppSpacing.xs),
-            child: Text(title.toUpperCase(),
-                style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: .6)),
+            child: Row(
+              children: [
+                Text(title.toUpperCase(),
+                    style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: .6)),
+              ],
+            ),
           ),
           Card(
             margin: EdgeInsets.zero,
@@ -314,8 +549,11 @@ class _Menu extends StatelessWidget {
   final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) => ListTile(
-      leading: Icon(icon, color: AppColors.primary),
-      title: Text(label),
-      trailing: const Icon(Icons.chevron_right),
+      contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      leading: Icon(icon, color: AppColors.primaryDark, size: 22),
+      title: Text(label,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+      trailing: const Icon(Icons.chevron_right_rounded,
+          color: AppColors.textSecondary),
       onTap: onTap);
 }

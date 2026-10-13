@@ -53,7 +53,11 @@ void main() {
     await settle();
     // Wave payment request (simulated), then the order is paid.
     expect(find.text('Paiement Wave'), findsOneWidget);
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Payer'));
+    // The dialog shows the amount left to pay with Wave.
+    expect(find.textContaining('Montant à payer avec Wave'), findsOneWidget);
+    await tester.tap(find.ancestor(
+        of: find.textContaining('Payer '),
+        matching: find.byType(ElevatedButton)));
     await settle();
     expect(find.text('Commande confirmée'), findsOneWidget);
     expect(find.text('Payé par Wave'), findsOneWidget);

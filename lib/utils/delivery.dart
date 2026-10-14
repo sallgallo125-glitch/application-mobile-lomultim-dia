@@ -44,6 +44,10 @@ const freeDeliveryThresholdXof = 500000;
 const _promoCodes = {'WELCOME10', 'LO10'};
 const promoRate = 0.10;
 
+/// Whether [code] is a promo code accepted at checkout.
+bool isValidPromoCode(String code) =>
+    _promoCodes.contains(code.trim().toUpperCase());
+
 enum PromoStatus { notProvided, applied, invalidOrExpired }
 
 class CheckoutTotals {

@@ -10,7 +10,7 @@ import '../shimmer.dart' show Shimmer;
 const _rotationInterval = Duration(seconds: 5);
 
 /// Fixed banner height, identical on every device.
-const double kPromoBannerHeight = 135;
+const double kPromoBannerHeight = 155;
 
 /// Mirrors ../mobile-app/src/components/commerce/PromoBanner.tsx
 class PromoBannerCarousel extends StatefulWidget {
@@ -305,7 +305,7 @@ class _BannerFrame extends StatelessWidget {
 
   /// Extra height on top of the image ratio (the picture is zoomed to fill
   /// it, so its sides are cropped).
-  static const extraHeight = 0.0;
+  static const extraHeight = 20.0;
 
   @override
   Widget build(BuildContext context) => hasImage

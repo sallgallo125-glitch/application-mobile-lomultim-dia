@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../theme/tokens.dart';
 import '../widgets/app_header.dart';
+import '../widgets/empty_state.dart';
 
 /// Stand-in for tabs not yet ported from ../mobile-app (Boutique, Panier,
 /// Lo+, Compte). Mirrors the RN app's own bootstrap-stage stub screens.
@@ -26,16 +27,13 @@ class PlaceholderScreen extends StatelessWidget {
               onBack: () => context.canPop() ? context.pop() : context.go('/'),
             ),
             Expanded(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.xl),
-                  child: Text(
-                    message,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 15),
-                  ),
-                ),
+              child: EmptyState(
+                icon: Icons.construction_outlined,
+                accent: AppColors.gold,
+                title: 'Bientôt disponible',
+                message: message,
+                actionLabel: 'Retour à la boutique',
+                onAction: () => context.go('/boutique'),
               ),
             ),
           ],

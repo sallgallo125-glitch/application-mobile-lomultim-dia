@@ -210,19 +210,21 @@ class _OrderStatus extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 180),
         padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+        // Solid fill, white text: reads at a glance in the list.
         decoration: BoxDecoration(
-          color: color.withValues(alpha: .1),
-          borderRadius: BorderRadius.circular(AppRadii.pill),
+          color: color,
+          borderRadius: BorderRadius.circular(3),
         ),
         child: Text(
           status.toUpperCase(),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           textAlign: TextAlign.center,
-          style: TextStyle(
-            color: color,
+          style: const TextStyle(
+            color: Colors.white,
             fontSize: 11,
             fontWeight: FontWeight.w700,
+            letterSpacing: .3,
           ),
         ),
       );
@@ -294,8 +296,16 @@ class _GuestOrdersScreen extends ConsumerWidget {
                         title: Text(order.number,
                             style:
                                 const TextStyle(fontWeight: FontWeight.w800)),
-                        subtitle: Text(
-                            '${order.createdAt} · ${formatXof(order.totalXof)}\n${order.status}'),
+                        subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                  '${order.createdAt} · ${formatXof(order.totalXof)}'),
+                              const SizedBox(height: AppSpacing.xs),
+                              _OrderStatus(
+                                  status: order.status,
+                                  color: _statusColor(order.status)),
+                            ]),
                         isThreeLine: true,
                         trailing: TextButton(
                           onPressed: () => context.push(

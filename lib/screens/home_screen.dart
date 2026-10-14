@@ -19,6 +19,7 @@ import '../widgets/search_field.dart';
 import '../widgets/section_header.dart';
 import '../widgets/header_actions.dart';
 import '../widgets/whatsapp_button.dart';
+import '../widgets/home_extras.dart';
 import 'photo_search_screen.dart' show startPhotoSearch;
 import '../widgets/nav_clearance.dart';
 
@@ -234,6 +235,14 @@ class _HomeContentView extends ConsumerWidget {
           ),
           ProductRail(products: content.recommendedProducts),
         ],
+        const HomeRecentlyViewed(),
+        const SizedBox(height: AppSpacing.lg),
+        HomeBrands(fallback: [
+          ...content.flashProducts,
+          ...content.bestSellers,
+          ...content.newArrivals,
+          ...content.recommendedProducts,
+        ]),
         const SizedBox(height: AppSpacing.lg),
         const SectionHeader(title: 'Services'),
         const SizedBox(height: AppSpacing.sm),

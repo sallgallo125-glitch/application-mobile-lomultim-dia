@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../features/account/account_providers.dart';
 import '../theme/tokens.dart';
+import '../widgets/app_header.dart' show AppBackButton;
 
 /// Sign-in: logo, "Connexion", e-mail or phone + password, link to sign-up.
 class LoginScreen extends ConsumerStatefulWidget {
@@ -237,12 +238,12 @@ class AuthScaffold extends StatelessWidget {
           child: Column(children: [
             Align(
               alignment: Alignment.centerLeft,
-              child: IconButton(
-                tooltip: 'Retour',
-                icon: const Icon(Icons.arrow_back,
-                    color: AppColors.textSecondary),
-                onPressed: () =>
-                    context.canPop() ? context.pop() : context.go('/compte'),
+              child: Padding(
+                padding: const EdgeInsets.only(left: AppSpacing.lg),
+                child: AppBackButton(
+                  onPressed: () =>
+                      context.canPop() ? context.pop() : context.go('/compte'),
+                ),
               ),
             ),
             Expanded(

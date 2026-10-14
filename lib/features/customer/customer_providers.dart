@@ -10,13 +10,28 @@ final favoriteIdsProvider = StateProvider<Set<String>>((ref) {
           ref, key, (json) => (json as List<dynamic>).cast<String>().toSet()) ??
       <String>{};
 });
-final notificationsProvider =
-    StateProvider<List<({String title, String message, bool read})>>((ref) {
+/// One in-app notification. [link] is the route opened when it is tapped.
+typedef AppNotification = ({
+  String title,
+  String message,
+  bool read,
+  DateTime date,
+  String? link,
+});
+
+final notificationsProvider = StateProvider<List<AppNotification>>((ref) {
   const key = 'notifications';
   ref.listenSelf((_, next) => writeStored(ref, key, [
         for (final item in next)
-          {'title': item.title, 'message': item.message, 'read': item.read}
+          {
+            'title': item.title,
+            'message': item.message,
+            'read': item.read,
+            'date': item.date.toIso8601String(),
+            'link': item.link,
+          }
       ]));
+  final now = DateTime.now();
   return readStored(ref, key, (json) {
         final rows = json as List<dynamic>;
         return [
@@ -25,6 +40,8 @@ final notificationsProvider =
               title: (value as Map<String, dynamic>)['title'] as String,
               message: value['message'] as String,
               read: value['read'] as bool,
+              date: DateTime.tryParse(value['date'] as String? ?? '') ?? now,
+              link: value['link'] as String?,
             )
         ];
       }) ??
@@ -32,15 +49,35 @@ final notificationsProvider =
         (
           title: 'Ventes flash',
           message: 'De nouvelles promotions sont disponibles.',
-          read: false
+          read: false,
+          date: now.subtract(const Duration(hours: 2)),
+          link: '/boutique',
         ),
         (
           title: 'Commande LO-2026-00142',
           message: 'Votre commande est en préparation.',
-          read: false
+          read: false,
+          date: now.subtract(const Duration(days: 1, hours: 3)),
+          link: '/commandes',
         ),
-        (title: 'Lo+', message: 'Vous avez gagné 20 points.', read: true),
+        (
+          title: 'Lo+',
+          message: 'Vous avez gagné 20 points.',
+          read: true,
+          date: now.subtract(const Duration(days: 9)),
+          link: '/lo',
+        ),
       ];
+});
+
+/// Notification kinds the customer chose to receive ('order', 'loyalty',
+/// 'promo', 'info'), kept on the device.
+final notificationPrefsProvider = StateProvider<Set<String>>((ref) {
+  const key = 'notification_prefs';
+  ref.listenSelf((_, next) => writeStored(ref, key, next.toList()));
+  return readStored(
+          ref, key, (json) => (json as List<dynamic>).cast<String>().toSet()) ??
+      {'order', 'loyalty', 'promo', 'info'};
 });
 final chatMessagesProvider =
     StateProvider<List<({bool mine, String text})>>((ref) {

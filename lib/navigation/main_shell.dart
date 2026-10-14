@@ -22,6 +22,10 @@ const _cartTab = 2;
 /// Index of the "Boutique" tab (the bar hides while its products scroll).
 const _shopTab = 1;
 
+/// Index of the "Lo+" tab: opened from Compte it shows a back arrow
+/// (`/lo?from=compte`), which the bottom bar must not bring back.
+const _loyaltyTab = 3;
+
 class MainShell extends ConsumerWidget {
   const MainShell({super.key, required this.navigationShell});
 
@@ -49,7 +53,8 @@ class MainShell extends ConsumerWidget {
                   .read(shopOpenedFromHomeProvider.notifier)
                   .state = false;
               navigationShell.goBranch(index,
-                  initialLocation: index == navigationShell.currentIndex);
+                  initialLocation: index == navigationShell.currentIndex ||
+                      index == _loyaltyTab);
             },
           ),
         ),

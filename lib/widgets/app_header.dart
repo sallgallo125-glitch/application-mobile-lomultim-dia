@@ -68,11 +68,8 @@ class AppHeader extends StatelessWidget {
                   Row(
                     children: [
                       if (onBack != null) ...[
-                        _IconBubble(
-                            icon: Icons.arrow_back_ios_new,
-                            label: 'Retour',
-                            onPressed: onBack),
-                        const SizedBox(width: AppSpacing.sm),
+                        AppBackButton(onPressed: onBack!),
+                        const SizedBox(width: AppSpacing.xs),
                       ],
                       if (showLogo) ...[
                         SizedBox(
@@ -157,20 +154,20 @@ class _IconBubble extends StatelessWidget {
     return Semantics(
       button: true,
       label: label,
+      // No background: plain icon, like the back arrow.
       child: Material(
-        color: AppColors.primarySoft,
-        borderRadius: BorderRadius.circular(AppRadii.md),
+        type: MaterialType.transparency,
         child: InkWell(
-          borderRadius: BorderRadius.circular(AppRadii.md),
+          customBorder: const CircleBorder(),
           onTap: onPressed,
           child: SizedBox(
-            width: 38,
-            height: 38,
+            width: 40,
+            height: 40,
             child: Stack(
               clipBehavior: Clip.none,
               children: [
                 Center(
-                    child: Icon(icon, size: 20, color: AppColors.primaryDark)),
+                    child: Icon(icon, size: 24, color: AppColors.primaryDark)),
                 if (count != null && count! > 0)
                   Positioned(
                     top: -3,
@@ -201,4 +198,31 @@ class _IconBubble extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Plain back arrow, no background: the app's single back-button style.
+/// Navy like the page titles (white on the blue bands, [onDark]), with a
+/// 44 px touch target.
+class AppBackButton extends StatelessWidget {
+  const AppBackButton(
+      {super.key, required this.onPressed, this.onDark = false});
+
+  final VoidCallback onPressed;
+
+  /// On a dark/blue background.
+  final bool onDark;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+        tooltip: 'Retour',
+        onPressed: onPressed,
+        icon: const Icon(Icons.arrow_back),
+        iconSize: 24,
+        color: onDark ? AppColors.white : AppColors.primaryDark,
+        padding: EdgeInsets.zero,
+        // Pulls the arrow to the page edge, like the reference.
+        style: IconButton.styleFrom(
+            minimumSize: const Size(44, 44), alignment: Alignment.centerLeft),
+        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+      );
 }

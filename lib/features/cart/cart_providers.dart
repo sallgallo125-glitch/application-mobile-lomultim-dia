@@ -36,3 +36,6 @@ class CartActions {
 }
 
 final cartActionsProvider = Provider<CartActions>((ref) => CartActions(ref));
+
+/// Promo code entered in the cart, pre-filled on the checkout page.
+final cartPromoCodeProvider = StateProvider<String>((ref) => '');

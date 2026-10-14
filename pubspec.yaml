@@ -23,6 +23,8 @@ dependencies:
   sqflite: ^2.4.4+1
   path: ^1.9.1
   sqflite_common: ^2.5.13+1
+  lottie: ^3.6.1
+  flutter_svg: ^2.3.0
 
 dev_dependencies:
   flutter_test:
@@ -35,6 +37,8 @@ flutter:
   assets:
     - assets/images/logo.png
     - assets/images/Panier 3D blanc avec logo LM.png
+    - assets/animations/
+    - assets/brands/
     - assets/lo-plus/
     - assets/products/
     - assets/banners/

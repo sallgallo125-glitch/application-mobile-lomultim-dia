@@ -287,12 +287,32 @@ class LegalIndexScreen extends ConsumerWidget {
   }
 }
 
-/// One legal page (site: /legal/:slug).
-class LegalScreen extends ConsumerWidget {
+/// One legal page (site: /legal/:slug), with a tappable table of contents.
+class LegalScreen extends ConsumerStatefulWidget {
   const LegalScreen({super.key, required this.slug});
   final String slug;
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LegalScreen> createState() => _LegalScreenState();
+}
+
+class _LegalScreenState extends ConsumerState<LegalScreen> {
+  final Map<int, GlobalKey> _anchors = {};
+
+  GlobalKey _anchor(int index) => _anchors.putIfAbsent(index, GlobalKey.new);
+
+  void _jumpTo(int index) {
+    final target = _anchors[index]?.currentContext;
+    if (target != null) {
+      Scrollable.ensureVisible(target,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOutCubic,
+          alignment: 0.02);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final slug = widget.slug;
     final doc = ref.watch(legalDocumentProvider(slug));
     return SubPage(
       title: doc.value?.title ?? 'Informations légales',
@@ -301,53 +321,229 @@ class LegalScreen extends ConsumerWidget {
         loading: () => const LoadingState(label: 'Chargement…'),
         error: (e, _) => ErrorState(
             onRetry: () => ref.invalidate(legalDocumentProvider(slug))),
-        data: (d) =>
-            ListView(padding: const EdgeInsets.all(AppSpacing.lg), children: [
-          Text('Mise à jour : ${d.updatedAt}',
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 12)),
-          const SizedBox(height: AppSpacing.sm),
-          ...legalHtmlToWidgets(d.bodyHtml),
-        ]),
+        data: (d) {
+          final headings = legalHeadings(d.bodyHtml);
+          // Column + SingleChildScrollView (not a lazy ListView) so every
+          // heading is built and the table of contents can reach it.
+          return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xxl),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(children: [
+                      const Icon(Icons.update,
+                          size: 16, color: AppColors.textSecondary),
+                      const SizedBox(width: AppSpacing.xs),
+                      Text('Mise à jour : ${d.updatedAt}',
+                          style: AppText.caption),
+                    ]),
+                    if (headings.length > 1) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      _TableOfContents(headings: headings, onTap: _jumpTo),
+                    ],
+                    const SizedBox(height: AppSpacing.md),
+                    ...legalHtmlToWidgets(d.bodyHtml, anchorFor: _anchor),
+                  ]));
+        },
       ),
     );
   }
 }
 
-String _stripTags(String html) => html
-    .replaceAll(RegExp(r'<br\s*/?>'), '\n')
-    .replaceAll(RegExp(r'<[^>]+>'), '')
+class _TableOfContents extends StatefulWidget {
+  const _TableOfContents({required this.headings, required this.onTap});
+  final List<String> headings;
+  final ValueChanged<int> onTap;
+  @override
+  State<_TableOfContents> createState() => _TableOfContentsState();
+}
+
+class _TableOfContentsState extends State<_TableOfContents> {
+  bool _open = false;
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+            color: AppColors.primarySoft,
+            borderRadius: BorderRadius.circular(AppRadii.lg)),
+        child: Column(children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(AppRadii.lg),
+            onTap: () => setState(() => _open = !_open),
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Row(children: [
+                const Icon(Icons.toc, color: AppColors.primary),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                    child: Text('Sommaire · ${widget.headings.length} sections',
+                        style: AppText.subtitle
+                            .copyWith(color: AppColors.primaryDark))),
+                Icon(_open ? Icons.expand_less : Icons.expand_more,
+                    color: AppColors.primary),
+              ]),
+            ),
+          ),
+          if (_open)
+            for (var i = 0; i < widget.headings.length; i++)
+              InkWell(
+                onTap: () => widget.onTap(i),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                  child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                            width: 26,
+                            child: Text('${i + 1}.',
+                                style: AppText.body.copyWith(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w800))),
+                        Expanded(
+                            child:
+                                Text(widget.headings[i], style: AppText.body)),
+                      ]),
+                ),
+              ),
+          if (_open) const SizedBox(height: AppSpacing.sm),
+        ]),
+      );
+}
+
+String _decode(String text) => text
     .replaceAll('&nbsp;', ' ')
-    .replaceAll('&amp;', '&')
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#39;', "'")
+    .replaceAll('&rsquo;', '’')
+    .replaceAll('&laquo;', '«')
+    .replaceAll('&raquo;', '»')
+    .replaceAll('&euro;', '€')
+    .replaceAll('&amp;', '&');
+
+String _stripTags(String html) => _decode(html
+        .replaceAll(RegExp(r'<br\s*/?>'), '\n')
+        .replaceAll(RegExp(r'<[^>]+>'), ''))
     .trim();
 
-/// Renders the small HTML subset the site's legal pages use: h2, p, ul/li,
-/// tables and "encart" boxes. Anything else is shown as plain text.
-List<Widget> legalHtmlToWidgets(String html) {
+/// Inline HTML (b/strong, i/em, a, br) as styled spans.
+TextSpan _inline(String html, TextStyle base) {
+  final spans = <InlineSpan>[];
+  final token =
+      RegExp(r'<(/?)(b|strong|i|em|a|br)\b[^>]*>', caseSensitive: false);
+  var bold = 0, italic = 0, link = 0;
+  var cursor = 0;
+  void push(String raw) {
+    final text = _decode(raw.replaceAll(RegExp(r'<[^>]+>'), ''));
+    if (text.isEmpty) return;
+    spans.add(TextSpan(
+        text: text,
+        style: TextStyle(
+            fontWeight: bold > 0 ? FontWeight.w800 : null,
+            fontStyle: italic > 0 ? FontStyle.italic : null,
+            color: link > 0 ? AppColors.primary : null,
+            decoration: link > 0 ? TextDecoration.underline : null)));
+  }
+
+  for (final m in token.allMatches(html)) {
+    push(html.substring(cursor, m.start));
+    cursor = m.end;
+    final delta = m.group(1)!.isNotEmpty ? -1 : 1;
+    switch (m.group(2)!.toLowerCase()) {
+      case 'b' || 'strong':
+        bold = (bold + delta).clamp(0, 9);
+      case 'i' || 'em':
+        italic = (italic + delta).clamp(0, 9);
+      case 'a':
+        link = (link + delta).clamp(0, 9);
+      case 'br':
+        spans.add(const TextSpan(text: '\n'));
+    }
+  }
+  push(html.substring(cursor));
+  return TextSpan(style: base, children: spans);
+}
+
+/// Section titles (h2) of a legal page, in order.
+List<String> legalHeadings(String html) =>
+    RegExp(r'<h2[^>]*>(.*?)</h2>', dotAll: true)
+        .allMatches(html)
+        .map((m) => _stripTags(m.group(1)!))
+        .toList();
+
+/// Renders the HTML subset the site's legal pages use: h2/h3, p, ul/ol,
+/// tables and "encart" boxes, with bold/italic/links inside paragraphs.
+/// [anchorFor] gives each h2 a key so the table of contents can scroll to it.
+List<Widget> legalHtmlToWidgets(String html,
+    {GlobalKey Function(int index)? anchorFor}) {
   final widgets = <Widget>[];
-  final block = RegExp(r'<(h2|p|ul|table|div)[^>]*>(.*?)</\1>', dotAll: true);
+  var headingIndex = 0;
+  final block =
+      RegExp(r'<(h2|h3|p|ul|ol|table|div)[^>]*>(.*?)</\1>', dotAll: true);
   for (final m in block.allMatches(html)) {
     final tag = m.group(1)!;
     final inner = m.group(2)!;
     switch (tag) {
       case 'h2':
-        widgets.add(PageSectionTitle(_stripTags(inner)));
+        final index = headingIndex++;
+        widgets.add(Padding(
+          key: anchorFor?.call(index),
+          padding:
+              const EdgeInsets.only(top: AppSpacing.lg, bottom: AppSpacing.sm),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+                width: 4,
+                height: 22,
+                margin: const EdgeInsets.only(right: AppSpacing.sm, top: 1),
+                decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(AppRadii.pill))),
+            Expanded(child: Text(_stripTags(inner), style: AppText.section)),
+          ]),
+        ));
+      case 'h3':
+        widgets.add(Padding(
+            padding: const EdgeInsets.only(
+                top: AppSpacing.sm, bottom: AppSpacing.xs),
+            child: Text(_stripTags(inner), style: AppText.subtitle)));
       case 'p':
         widgets.add(Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: Text(_stripTags(inner))));
-      case 'ul':
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: Text.rich(_inline(inner.trim(), AppText.body))));
+      case 'ul' || 'ol':
+        var n = 0;
         for (final li
-            in RegExp(r'<li>(.*?)</li>', dotAll: true).allMatches(inner)) {
+            in RegExp(r'<li[^>]*>(.*?)</li>', dotAll: true).allMatches(inner)) {
+          n++;
           widgets.add(Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-              child: Text('•  ${_stripTags(li.group(1)!)}')));
+              padding: const EdgeInsets.only(
+                  bottom: AppSpacing.sm, left: AppSpacing.xs),
+              child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                        width: 22,
+                        child: tag == 'ol'
+                            ? Text('$n.',
+                                style: AppText.body.copyWith(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w800))
+                            : const Padding(
+                                padding: EdgeInsets.only(top: 7),
+                                child: Icon(Icons.circle,
+                                    size: 6, color: AppColors.primary))),
+                    Expanded(
+                        child: Text.rich(
+                            _inline(li.group(1)!.trim(), AppText.body))),
+                  ])));
         }
         widgets.add(const SizedBox(height: AppSpacing.sm));
       case 'table':
-        final rows = RegExp(r'<tr>(.*?)</tr>', dotAll: true)
+        final rows = RegExp(r'<tr[^>]*>(.*?)</tr>', dotAll: true)
             .allMatches(inner)
-            .map((r) => RegExp(r'<t[hd]>(.*?)</t[hd]>', dotAll: true)
+            .map((r) => RegExp(r'<t[hd][^>]*>(.*?)</t[hd]>', dotAll: true)
                 .allMatches(r.group(1)!)
                 .map((c) => _stripTags(c.group(1)!))
                 .toList())
@@ -356,32 +552,53 @@ List<Widget> legalHtmlToWidgets(String html) {
         final header = rows.first;
         // Each row as a card: reads well on narrow phones.
         for (final row in rows.skip(1)) {
-          widgets.add(Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(row.first,
-                        style: const TextStyle(fontWeight: FontWeight.w800)),
-                    for (var i = 1; i < row.length && i < header.length; i++)
-                      Text('${header[i]} : ${row[i]}',
-                          style: const TextStyle(fontSize: 13)),
-                  ]),
-            ),
+          widgets.add(Container(
+            margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+                color: AppColors.white,
+                border: Border.all(color: AppColors.border),
+                borderRadius: BorderRadius.circular(AppRadii.md)),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(row.first, style: AppText.subtitle),
+                  const SizedBox(height: AppSpacing.xs),
+                  for (var i = 1; i < row.length && i < header.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                                flex: 2,
+                                child: Text(header[i], style: AppText.caption)),
+                            Expanded(
+                                flex: 3,
+                                child: Text(row[i],
+                                    style:
+                                        AppText.body.copyWith(fontSize: 13))),
+                          ]),
+                    ),
+                ]),
           ));
         }
         widgets.add(const SizedBox(height: AppSpacing.sm));
       case 'div':
-        widgets.add(Card(
-          color: AppColors.primarySoft,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            child: Text(_stripTags(inner.replaceAll('</b>', '</b>\n'))),
-          ),
+        widgets.add(Container(
+          margin: const EdgeInsets.only(bottom: AppSpacing.md),
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+              color: AppColors.primarySoft,
+              borderRadius: BorderRadius.circular(AppRadii.md),
+              border: const Border(
+                  left: BorderSide(color: AppColors.primary, width: 4))),
+          child: Text.rich(_inline(inner.trim(), AppText.body)),
         ));
     }
   }
-  if (widgets.isEmpty) widgets.add(Text(_stripTags(html)));
+  if (widgets.isEmpty) {
+    widgets.add(Text(_stripTags(html), style: AppText.body));
+  }
   return widgets;
 }

@@ -30,13 +30,23 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final address = TextEditingController();
   final name = TextEditingController();
   final phone = TextEditingController();
-  final promo = TextEditingController();
+  // Pre-filled with the code entered in the cart.
+  late final promo =
+      TextEditingController(text: ref.read(cartPromoCodeProvider));
 
   /// Promo code the customer applied (checked by [calculateCheckoutTotals]).
-  String appliedPromo = '';
+  late String appliedPromo = ref.read(cartPromoCodeProvider);
 
   /// LO+ points the customer chose to spend (1 point = 100 FCFA, 10 minimum).
   int pointsToUse = 0;
+
+  // Amounts of the last build, for the payment dialog: total, then what the
+  // points and the gift card cover, and the rest paid with [payment].
+  int _totalXof = 0;
+  int _usedPoints = 0;
+  int _pointsDiscountXof = 0;
+  int _giftAppliedXof = 0;
+  int _amountDueXof = 0;
 
   /// Gift card applied after a successful balance check.
   final giftCode = TextEditingController();
@@ -55,6 +65,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   /// 0 = Livraison, 1 = Paiement, 2 = Récapitulatif (same steps as the site).
   int step = 0;
+
   static const _stepLabels = ['Livraison', 'Paiement', 'Récapitulatif'];
 
   String? get _nameError =>
@@ -99,6 +110,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     if (user != null) {
       name.text = user.name;
       phone.text = user.phone;
+      // Address and zone of this account's last order.
+      final last = ref.read(lastDeliveryProvider(user.phone));
+      if (last != null) {
+        address.text = last.address;
+        // Only a zone that still exists (else the dropdown would throw).
+        if (deliveryZones.any((z) => z.id == last.zoneId)) {
+          zoneId = last.zoneId;
+        }
+      }
     } else {
       // Guest: details of their previous order, if any.
       final guest = ref.read(guestContactProvider);
@@ -166,7 +186,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 child: Container(
                   width: 54,
                   height: 54,
-                  padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
                     color: AppColors.white,
                     borderRadius: BorderRadius.circular(AppRadii.md),
@@ -174,21 +193,45 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(AppRadii.sm),
-                    child: Image.asset(asset, fit: BoxFit.contain),
+                    child: Image.asset(asset,
+                        width: double.infinity,
+                        height: double.infinity,
+                        fit: BoxFit.cover),
                   ),
                 ),
               )
             : Icon(icon, color: AppColors.primary, size: 36),
         title: Text(title),
-        content: Text('$body\n\nMode démonstration : aucun montant n’est '
-            'réellement débité.'),
+        content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Montant à payer avec ${payment.label} : '
+                  '${formatXof(_amountDueXof)}',
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w800)),
+              // What the points / gift card already cover.
+              if (_pointsDiscountXof > 0 || _giftAppliedXof > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                      '(Total ${formatXof(_totalXof)}'
+                      '${_pointsDiscountXof > 0 ? ' − $_usedPoints points LO+ (${formatXof(_pointsDiscountXof)})' : ''}'
+                      '${_giftAppliedXof > 0 ? ' − carte cadeau ${formatXof(_giftAppliedXof)}' : ''})',
+                      style: const TextStyle(
+                          color: AppColors.textSecondary, fontSize: 13)),
+                ),
+              const SizedBox(height: AppSpacing.md),
+              Text('$body\n\nMode démonstration : aucun montant n’est '
+                  'réellement débité.'),
+            ]),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Annuler')),
           ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Payer')),
+              child: Text('Payer ${formatXof(_amountDueXof)}')),
         ],
       ),
     );
@@ -206,7 +249,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
     // Wave / Orange Money / card: the customer confirms the payment first
     // (simulated until the operators' real APIs are connected).
-    if (payment.isOnline && !await _confirmOnlinePayment()) return;
+    // Nothing left to pay (points / gift card cover it all): no dialog.
+    if (payment.isOnline &&
+        _amountDueXof > 0 &&
+        !await _confirmOnlinePayment()) {
+      return;
+    }
     setState(() {
       sending = true;
       error = null;
@@ -217,7 +265,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           zoneId: zoneId,
           payment: payment.code,
           promoCode: appliedPromo,
-          pointsToUse: pointsToUse,
+          // The points actually used (clamped to the balance and the
+          // total), not the "maximum" placeholder from the cart.
+          pointsToUse: _usedPoints,
           giftCardCode: appliedGiftCode,
           giftCardOtp: appliedGiftCode == null ? null : giftOtp.text.trim(),
           name: name.text.trim(),
@@ -281,6 +331,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         ? 0
         : (giftBalanceXof < afterPoints ? giftBalanceXof : afterPoints);
     final amountDue = afterPoints - giftApplied;
+    _totalXof = totals.totalXof;
+    _usedPoints = usedPoints;
+    _pointsDiscountXof = pointsDiscount;
+    _giftAppliedXof = giftApplied;
+    _amountDueXof = amountDue;
     // Price of each delivery mode for this cart and zone.
     String feeLabel(DeliveryMethod m) {
       if (m == DeliveryMethod.pickup) return 'Gratuit';
@@ -383,19 +438,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     ];
     final hasCodes =
         totals.promoStatus == PromoStatus.applied || appliedGiftCode != null;
-    Widget payOption(PaymentMethod method) => Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: _RadioOption<PaymentMethod>(
-            value: method,
-            group: payment,
-            onChanged: (v) => setState(() => payment = v),
-            title: method.label,
-            subtitle: method.description,
-            leading: _paymentMethodLeading(method),
-            selected: payment == method,
-            enabled: method.available,
-          ),
-        );
     Widget groupTitle(String text) => Padding(
           padding: const EdgeInsets.only(top: AppSpacing.sm, bottom: 6),
           child: Text(text.toUpperCase(),
@@ -411,11 +453,66 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final paymentStep = <Widget>[
       const Text('Moyen de paiement', style: _sectionTitle),
       groupTitle('Mobile money'),
-      for (final m in mobileMoney) payOption(m),
-      groupTitle('Carte bancaire'),
-      payOption(PaymentMethod.card),
-      groupTitle('À la livraison'),
-      payOption(PaymentMethod.cashOnDelivery),
+      // Mobile money as logo tiles: customers recognise the brand first.
+      Row(children: [
+        for (var i = 0; i < mobileMoney.length; i++) ...[
+          if (i > 0) const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: _PayTile(
+              label: mobileMoney[i].label,
+              asset: _paymentAsset(mobileMoney[i])!,
+              selected: payment == mobileMoney[i],
+              enabled: mobileMoney[i].available,
+              onTap: () => setState(() => payment = mobileMoney[i]),
+            ),
+          ),
+        ],
+      ]),
+      if (mobileMoney.contains(payment))
+        Padding(
+          padding: const EdgeInsets.only(top: AppSpacing.sm),
+          child: Row(children: [
+            const Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+            const SizedBox(width: AppSpacing.xs),
+            Expanded(
+                child: Text(payment.description,
+                    style: AppText.caption.copyWith(color: AppColors.text))),
+          ]),
+        ),
+      const SizedBox(height: AppSpacing.xs),
+      groupTitle('Autres moyens'),
+      // Same tiles and size as mobile money (3-column grid, 2 used).
+      Row(children: [
+        for (final (i, method)
+            in [PaymentMethod.card, PaymentMethod.cashOnDelivery].indexed) ...[
+          if (i > 0) const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: _PayTile(
+              label: method == PaymentMethod.cashOnDelivery
+                  ? 'À la livraison'
+                  : method.label,
+              asset: _paymentAsset(method)!,
+              selected: payment == method,
+              enabled: method.available,
+              onTap: () => setState(() => payment = method),
+            ),
+          ),
+        ],
+        const SizedBox(width: AppSpacing.sm),
+        const Expanded(child: SizedBox.shrink()),
+      ]),
+      if (payment == PaymentMethod.card ||
+          payment == PaymentMethod.cashOnDelivery)
+        Padding(
+          padding: const EdgeInsets.only(top: AppSpacing.sm),
+          child: Row(children: [
+            const Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+            const SizedBox(width: AppSpacing.xs),
+            Expanded(
+                child: Text(payment.description,
+                    style: AppText.caption.copyWith(color: AppColors.text))),
+          ]),
+        ),
       if (ref.watch(signedInProvider) && availablePoints > 0) ...[
         const SizedBox(height: AppSpacing.lg),
         const Text('Payer avec mes points LO+', style: _sectionTitle),
@@ -436,6 +533,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         Text(usedPoints == 0
             ? 'Aucun point utilisé'
             : '$usedPoints points utilisés = −${formatXof(pointsDiscount)}'),
+        const SizedBox(height: AppSpacing.xs),
+        // The rest goes to the chosen payment method.
+        Text(
+            amountDue == 0
+                ? 'Commande entièrement payée avec vos points'
+                : 'Reste à payer avec ${payment.label} : ${formatXof(amountDue)}',
+            style: const TextStyle(
+                color: AppColors.primary, fontWeight: FontWeight.w800)),
       ],
       const SizedBox(height: AppSpacing.md),
       // Promo code and gift card are folded: few customers have one.
@@ -621,24 +726,63 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           textAlign: TextAlign.center,
           style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
     ];
-    final children = [deliveryStep, paymentStep, reviewStep][step];
     final last = step == _stepLabels.length - 1;
+    // One scrolling page per step; the error box shows on the current one.
+    Widget stepView(int i) => ColoredBox(
+          color: AppColors.background,
+          child: ListView(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            children: [
+              ...[deliveryStep, paymentStep, reviewStep][i],
+              if (error != null && i == step)
+                Container(
+                  margin: const EdgeInsets.only(top: AppSpacing.md),
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.dangerSoft,
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                    border: Border.all(
+                        color: AppColors.danger.withValues(alpha: 0.35)),
+                  ),
+                  child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.error_outline,
+                            size: 20, color: AppColors.danger),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                            child: Text(error!,
+                                style: const TextStyle(
+                                    color: AppColors.dangerDark,
+                                    fontWeight: FontWeight.w700))),
+                      ]),
+                ),
+            ],
+          ),
+        );
     return Column(children: [
-      _StepIndicator(labels: _stepLabels, current: step),
+      _StepIndicator(
+          labels: _stepLabels,
+          current: step,
+          onStepTap: (i) => setState(() => step = i)),
+      // Each step is a real page stacked by a nested navigator: it pushes
+      // in on "Continuer" and pops off on back (or the iOS swipe gesture).
       Expanded(
-        child: ListView(
-          key: ValueKey(step), // each step starts at the top
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          children: [
-            ...children,
-            if (error != null)
-              Padding(
-                  padding: const EdgeInsets.only(top: AppSpacing.sm),
-                  child: Text(error!,
-                      style: const TextStyle(
-                          color: AppColors.danger,
-                          fontWeight: FontWeight.w700))),
+        child: Navigator(
+          pages: [
+            for (var i = 0; i <= step; i++)
+              MaterialPage<void>(
+                  key: ValueKey('checkout-step-$i'), child: stepView(i)),
           ],
+          onDidRemovePage: (page) {
+            // A page the user popped (swipe back): follow it.
+            if (page.key == ValueKey('checkout-step-$step') && step > 0) {
+              setState(() {
+                error = null;
+                step--;
+              });
+            }
+          },
         ),
       ),
       // Always visible: amount to pay, then a full-width button.
@@ -653,9 +797,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.sm),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Row(children: [
-                const Text('À payer',
-                    style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 13)),
+                Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('À payer', style: AppText.caption),
+                      Text('Étape ${step + 1} sur ${_stepLabels.length}',
+                          style: AppText.caption.copyWith(
+                              fontSize: 11, color: AppColors.primary)),
+                    ]),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Align(
@@ -681,10 +831,33 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           fontSize: 16, fontWeight: FontWeight.w800),
                     ),
                     onPressed: sending ? null : (last ? submit : _next),
-                    child: Text(last
-                        ? (sending ? 'Confirmation…' : 'Confirmer')
-                        : 'Continuer')),
+                    child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (last && !sending) ...[
+                            const Icon(Icons.lock_outline, size: 18),
+                            const SizedBox(width: AppSpacing.xs),
+                          ],
+                          Text(last
+                              ? (sending ? 'Confirmation…' : 'Confirmer')
+                              : 'Continuer'),
+                          if (!last) ...[
+                            const SizedBox(width: AppSpacing.xs),
+                            const Icon(Icons.arrow_forward_rounded, size: 18),
+                          ],
+                        ])),
               ),
+              const SizedBox(height: AppSpacing.xs),
+              const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.verified_user_outlined,
+                        size: 13, color: AppColors.textSecondary),
+                    SizedBox(width: 4),
+                    Text('Paiement sécurisé · Garantie constructeur',
+                        style: TextStyle(
+                            fontSize: 11, color: AppColors.textSecondary)),
+                  ]),
             ]),
           ),
         ),
@@ -695,7 +868,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     final cart = ref.watch(cartProvider);
-    return Scaffold(
+    // Phone back button: previous step first, leave only from step 1.
+    return PopScope(
+      canPop: step == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _back();
+      },
+      child: Scaffold(
         backgroundColor: AppColors.background,
         body: SafeArea(
             bottom: false,
@@ -708,7 +887,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   error: (error, stackTrace) =>
                       ErrorState(onRetry: () => ref.invalidate(cartProvider)),
                   data: (value) => Expanded(child: _buildCartContent(value)))
-            ])));
+            ])),
+      ),
+    );
   }
 
   Widget _line(String label, String value, {bool bold = false, Color? accent}) {
@@ -731,8 +912,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
-  Widget _paymentMethodLeading(PaymentMethod method) {
-    final asset = switch (method) {
+  String? _paymentAsset(PaymentMethod method) => switch (method) {
       PaymentMethod.cashOnDelivery =>
         'assets/paiement/Icône de paiement en espèces.png',
       PaymentMethod.wave => 'assets/paiement/wave.png',
@@ -741,28 +921,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       PaymentMethod.card =>
         'assets/paiement/Icône_de_carte_bancaire_moderne-removebg-preview.png',
     };
-    if (asset != null) {
-      return Container(
-        width: 42,
-        height: 42,
-        padding: const EdgeInsets.all(3),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(AppRadii.sm),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadii.sm - 2),
-          child: Image.asset(asset, fit: BoxFit.contain),
-        ),
-      );
-    }
-    final icon = switch (method) {
-      PaymentMethod.cashOnDelivery => Icons.payments_outlined,
-      _ => Icons.payment,
-    };
-    return Icon(icon, size: 22, color: AppColors.primary);
-  }
 }
 
 class _RadioOption<T> extends StatelessWidget {
@@ -887,71 +1045,153 @@ class _RadioOption<T> extends StatelessWidget {
   }
 }
 
-/// "1 Livraison — 2 Paiement — 3 Récapitulatif" progress header.
-class _StepIndicator extends StatelessWidget {
-  const _StepIndicator({required this.labels, required this.current});
-  final List<String> labels;
-  final int current;
+/// Mobile-money tile: the brand logo fills the top, name + radio below.
+class _PayTile extends StatelessWidget {
+  const _PayTile({
+    required this.label,
+    required this.asset,
+    required this.selected,
+    required this.enabled,
+    required this.onTap,
+  });
+  final String label;
+  final String asset;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final textScale = MediaQuery.textScalerOf(context).scale(1);
-    final compact = MediaQuery.sizeOf(context).width < 420 * textScale;
-    return Container(
-      color: AppColors.white,
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
-      child: Row(children: [
-        for (var i = 0; i < labels.length; i++) ...[
-          if (i > 0)
-            Expanded(
-                child: Container(
-                    height: 2,
-                    margin:
-                        const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
-                    // Done = green, upcoming = grey.
-                    color:
-                        i <= current ? AppColors.success : AppColors.border)),
-          Semantics(
-            label: 'Étape ${i + 1} sur ${labels.length} : ${labels[i]}'
-                '${i == current ? ', en cours' : i < current ? ', terminée' : ''}',
-            child: ExcludeSemantics(
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                CircleAvatar(
-                  radius: 12,
-                  // Done = green ✓, current = blue, upcoming = grey.
-                  backgroundColor: i < current
-                      ? AppColors.success
-                      : i == current
-                          ? AppColors.primary
-                          : AppColors.border,
-                  child: i < current
-                      ? const Icon(Icons.check, size: 14, color: Colors.white)
-                      : Text('${i + 1}',
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: i <= current
-                                  ? Colors.white
-                                  : AppColors.textSecondary)),
+  Widget build(BuildContext context) => Semantics(
+        selected: selected,
+        button: true,
+        child: Opacity(
+          opacity: enabled ? 1 : 0.5,
+          child: Material(
+            color: AppColors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadii.lg),
+              side: BorderSide(
+                  color: selected ? AppColors.primaryDark : AppColors.border,
+                  width: selected ? 2 : 1),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: enabled ? onTap : null,
+              child: Column(children: [
+                AspectRatio(
+                  aspectRatio: 1.25,
+                  child: Image.asset(asset, fit: BoxFit.cover),
                 ),
-                const SizedBox(height: 2),
-                Text(compact && i != current ? '' : labels[i],
-                    maxLines: 1,
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight:
-                            i == current ? FontWeight.w800 : FontWeight.w600,
-                        color: i == current
-                            ? AppColors.primary
-                            : AppColors.textSecondary)),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.sm, AppSpacing.sm, AppSpacing.xs, AppSpacing.sm),
+                  decoration: const BoxDecoration(
+                      border: Border(top: BorderSide(color: AppColors.border))),
+                  child: Row(children: [
+                    Expanded(
+                      child: Text(label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight:
+                                  selected ? FontWeight.w800 : FontWeight.w600,
+                              color: AppColors.text)),
+                    ),
+                    Icon(
+                      selected
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                      size: 18,
+                      color: selected
+                          ? AppColors.primaryDark
+                          : AppColors.textSecondary,
+                    ),
+                  ]),
+                ),
               ]),
             ),
           ),
-        ],
-      ]),
-    );
-  }
+        ),
+      );
+}
+
+/// "1 Livraison — 2 Paiement — 3 Récapitulatif" progress header.
+class _StepIndicator extends StatelessWidget {
+  const _StepIndicator(
+      {required this.labels, required this.current, required this.onStepTap});
+  final List<String> labels;
+  final int current;
+
+  /// Called with a finished step's index to go back to it.
+  final ValueChanged<int> onStepTap;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          border: Border(bottom: BorderSide(color: AppColors.border)),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          for (var i = 0; i < labels.length; i++) ...[
+            if (i > 0)
+              const Icon(Icons.chevron_right,
+                  size: 18, color: AppColors.textSecondary),
+            Flexible(
+              child: Semantics(
+                button: i < current,
+                label: 'Étape ${i + 1} sur ${labels.length} : ${labels[i]}'
+                    '${i == current ? ', en cours' : i < current ? ', terminée' : ''}',
+                child: ExcludeSemantics(
+                  child: InkWell(
+                    onTap: i < current ? () => onStepTap(i) : null,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.xs, vertical: AppSpacing.md),
+                      // Current step: dark blue underline.
+                      decoration: BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(
+                            color: i == current
+                                ? AppColors.primaryDark
+                                : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        if (i < current) ...[
+                          const Icon(Icons.check,
+                              size: 14, color: AppColors.textSecondary),
+                          const SizedBox(width: 3),
+                        ],
+                        Flexible(
+                          child: Text(labels[i],
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: i == current
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                                color: i == current
+                                    ? AppColors.primaryDark
+                                    : i < current
+                                        ? AppColors.textSecondary
+                                        : AppColors.textSecondary
+                                            .withValues(alpha: 0.6),
+                              )),
+                        ),
+                      ]),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ]),
+      );
 }
 
 /// Recap block with an optional "Modifier" link back to its step.

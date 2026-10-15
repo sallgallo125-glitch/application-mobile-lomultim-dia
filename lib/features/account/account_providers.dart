@@ -178,3 +178,17 @@ final guestOrdersProvider = StateProvider<List<GuestOrder>>((ref) {
 
 final signedInProvider =
     Provider<bool>((ref) => ref.watch(sessionUserProvider) != null);
+
+/// Delivery address and zone of the customer's last order, per account
+/// (keyed by phone), kept on the device to pre-fill the next checkout.
+final lastDeliveryProvider =
+    StateProvider.family<({String address, String zoneId})?, String>(
+        (ref, account) {
+  final key = 'last_delivery_$account';
+  ref.listenSelf((_, next) => writeStored(ref, key,
+      next == null ? null : {'address': next.address, 'zoneId': next.zoneId}));
+  return readStored(ref, key, (json) {
+    final m = json as Map<String, dynamic>;
+    return (address: m['address'] as String, zoneId: m['zoneId'] as String);
+  });
+});

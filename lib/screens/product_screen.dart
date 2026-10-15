@@ -11,6 +11,7 @@ import '../features/cart/cart_providers.dart';
 import '../features/customer/customer_providers.dart';
 import '../theme/tokens.dart';
 import '../utils/currency.dart';
+import '../utils/loyalty.dart';
 import '../widgets/app_header.dart';
 import '../widgets/badge_chip.dart';
 import '../widgets/commerce/product_image.dart';
@@ -200,7 +201,7 @@ class _ProductScreenState extends ConsumerState<ProductScreen> {
                           : actions.remove(line.id),
                   onAdd: () async {
                     if (await _addToCart(product) && context.mounted) {
-                      showAddedToCart(context);
+                      showAddedToCart(context, product.name);
                     }
                   },
                   onViewCart: () => context.go('/panier'),
@@ -476,6 +477,36 @@ class _ProductContentState extends ConsumerState<_ProductContent> {
                               ],
                             ),
                           ),
+                        if (discount > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(top: AppSpacing.xs),
+                            child: Text(
+                                'Vous économisez ${formatXof(compareAt! - price)}',
+                                style: AppText.caption.copyWith(
+                                    color: AppColors.success,
+                                    fontWeight: FontWeight.w700)),
+                          ),
+                        if (loyaltyPointsFor(price) > 0)
+                          Container(
+                            margin: const EdgeInsets.only(top: AppSpacing.sm),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.sm, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: AppColors.gold.withValues(alpha: 0.12),
+                              borderRadius:
+                                  BorderRadius.circular(AppRadii.pill),
+                            ),
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              const Icon(Icons.stars_rounded,
+                                  size: 16, color: AppColors.gold),
+                              const SizedBox(width: 4),
+                              Flexible(child: Text(
+                                  '+${loyaltyPointsFor(price)} points LO+ avec cet achat',
+                                  style: AppText.caption.copyWith(
+                                      color: AppColors.text,
+                                      fontWeight: FontWeight.w700))),
+                            ]),
+                          ),
                         const SizedBox(height: AppSpacing.md),
                         // Benefits strip.
                         const Wrap(
@@ -486,6 +517,8 @@ class _ProductContentState extends ConsumerState<_ProductContent> {
                                 'Livraison au Sénégal'),
                             _Benefit(Icons.verified_user_outlined,
                                 'Garantie 12 mois'),
+                            _Benefit(Icons.phone_android,
+                                'Wave · Orange Money'),
                           ],
                         ),
                         const SizedBox(height: AppSpacing.lg),
@@ -575,39 +608,15 @@ class _ProductContentState extends ConsumerState<_ProductContent> {
                         if (product.description != null)
                           _DetailSection(
                               title: 'Description',
-                              child: Text(product.description!,
-                                  style: const TextStyle(
-                                      color: AppColors.textSecondary,
-                                      height: 1.6))),
+                              child: _ExpandableText(product.description!)),
                         if (product.specifications.isNotEmpty)
                           _DetailSection(
                             title: 'Caractéristiques techniques',
-                            child: Column(children: [
-                              for (final entry
-                                  in product.specifications.entries)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: AppSpacing.xs),
-                                  child: Row(children: [
-                                    Expanded(
-                                        child: Text(entry.key,
-                                            style: const TextStyle(
-                                                color:
-                                                    AppColors.textSecondary))),
-                                    const SizedBox(width: AppSpacing.sm),
-                                    Flexible(
-                                      child: Text(entry.value,
-                                          textAlign: TextAlign.right,
-                                          style: const TextStyle(
-                                              fontWeight: FontWeight.w700)),
-                                    ),
-                                  ]),
-                                ),
-                            ]),
+                            child: _SpecTable(product.specifications),
                           ),
                         const _DetailSection(
                           title: 'Bon à savoir',
-                          child: Column(children: [
+                          child: _ServiceGrid(children: [
                             _Service(
                                 Icons.local_shipping_outlined,
                                 'Livraison rapide',
@@ -685,6 +694,152 @@ class _ProductContentState extends ConsumerState<_ProductContent> {
   }
 }
 
+/// Long text folded after a few lines, with "Lire la suite".
+class _ExpandableText extends StatefulWidget {
+  const _ExpandableText(this.text);
+  final String text;
+  @override
+  State<_ExpandableText> createState() => _ExpandableTextState();
+}
+
+class _ExpandableTextState extends State<_ExpandableText> {
+  static const _foldedLines = 4;
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    const style = TextStyle(color: AppColors.textSecondary, height: 1.6);
+    return LayoutBuilder(builder: (context, constraints) {
+      final painter = TextPainter(
+        text: TextSpan(text: widget.text, style: style),
+        maxLines: _foldedLines,
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+      )..layout(maxWidth: constraints.maxWidth);
+      final long = painter.didExceedMaxLines;
+      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        AnimatedSize(
+          duration: MediaQuery.of(context).disableAnimations
+              ? Duration.zero
+              : const Duration(milliseconds: 220),
+          alignment: Alignment.topCenter,
+          child: Text(widget.text,
+              style: style,
+              maxLines: _open || !long ? null : _foldedLines,
+              overflow: _open || !long ? null : TextOverflow.fade),
+        ),
+        if (long)
+          TextButton(
+            style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                foregroundColor: AppColors.primary),
+            onPressed: () => setState(() => _open = !_open),
+            child: Text(_open ? 'Réduire' : 'Lire la suite',
+                style: const TextStyle(fontWeight: FontWeight.w800)),
+          ),
+      ]);
+    });
+  }
+}
+
+/// Striped key/value table; long lists show the first rows then "Voir tout".
+class _SpecTable extends StatefulWidget {
+  const _SpecTable(this.specs);
+  final Map<String, String> specs;
+  @override
+  State<_SpecTable> createState() => _SpecTableState();
+}
+
+class _SpecTableState extends State<_SpecTable> {
+  static const _folded = 5;
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = widget.specs.entries.toList();
+    final shown = _open ? entries : entries.take(_folded).toList();
+    return Column(children: [
+      ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.circular(AppRadii.md),
+          ),
+          child: Column(children: [
+            for (var i = 0; i < shown.length; i++)
+              Container(
+                color: i.isEven ? AppColors.primarySoft : AppColors.white,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md, vertical: 10),
+                child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                          child:
+                              Text(shown[i].key, style: AppText.bodyMuted)),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Text(shown[i].value,
+                            textAlign: TextAlign.right,
+                            style: AppText.body
+                                .copyWith(fontWeight: FontWeight.w700)),
+                      ),
+                    ]),
+              ),
+          ]),
+        ),
+      ),
+      if (entries.length > _folded)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            style: TextButton.styleFrom(
+                padding: const EdgeInsets.only(top: AppSpacing.xs),
+                foregroundColor: AppColors.primary),
+            onPressed: () => setState(() => _open = !_open),
+            icon: Icon(_open ? Icons.expand_less : Icons.expand_more),
+            label: Text(
+                _open
+                    ? 'Réduire'
+                    : 'Voir toutes les caractéristiques (${entries.length})',
+                style: const TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ),
+    ]);
+  }
+}
+
+/// "Bon à savoir" services, two per row.
+class _ServiceGrid extends StatelessWidget {
+  const _ServiceGrid({required this.children});
+  final List<Widget> children;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final width = (constraints.maxWidth - AppSpacing.sm) / 2;
+          return Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              for (final child in children)
+                Container(
+                  width: width,
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    border: Border.all(color: AppColors.border),
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                  ),
+                  child: child,
+                ),
+            ],
+          );
+        },
+      );
+}
+
 class _StockDot extends StatelessWidget {
   const _StockDot({required this.inStock});
   final bool inStock;
@@ -716,7 +871,7 @@ class _Benefit extends StatelessWidget {
         Flexible(
           child: Text(label,
               style: const TextStyle(
-                  color: Color(0xFF5D6A7E),
+                  color: AppColors.textSecondary,
                   fontSize: 13,
                   fontWeight: FontWeight.w700)),
         ),
@@ -777,7 +932,7 @@ class _OptionChip extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               side: BorderSide(
                   color:
-                      selected ? AppColors.primary : const Color(0xFFE4E9F0)),
+                      selected ? AppColors.primary : AppColors.border),
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(8),
@@ -795,7 +950,7 @@ class _OptionChip extends StatelessWidget {
                               fontWeight: FontWeight.w700,
                               color: selected
                                   ? AppColors.primary
-                                  : const Color(0xFF536176))),
+                                  : AppColors.textSecondary)),
                       if (extra != null)
                         Text(extra!,
                             style: TextStyle(
@@ -888,24 +1043,21 @@ class _Service extends StatelessWidget {
   final String title;
   final String subtitle;
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: AppSpacing.md),
-        child: Row(children: [
-          Icon(icon, size: 22, color: AppColors.primary),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 14)),
-              Text(subtitle,
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 13)),
-            ]),
-          ),
-        ]),
-      );
+  Widget build(BuildContext context) =>
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+              color: AppColors.primarySoft,
+              borderRadius: BorderRadius.circular(AppRadii.sm)),
+          child: Icon(icon, size: 19, color: AppColors.primary),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(title, style: AppText.subtitle.copyWith(fontSize: 13.5)),
+        const SizedBox(height: 2),
+        Text(subtitle, style: AppText.caption),
+      ]);
 }
 
 class _ReviewsHeader extends StatelessWidget {

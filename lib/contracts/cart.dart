@@ -6,7 +6,10 @@ class CartItem {
       required this.quantity,
       required this.unitPriceXof,
       this.imageUrl,
-      this.categoryId});
+      this.categoryId,
+      this.variantId,
+      this.addonIds = const [],
+      this.options = const {}});
   final String id;
   final String productId;
   final String name;
@@ -14,6 +17,9 @@ class CartItem {
   final int unitPriceXof;
   final String? imageUrl;
   final String? categoryId;
+  final String? variantId;
+  final List<String> addonIds;
+  final Map<String, String> options;
   factory CartItem.fromJson(Map<String, dynamic> json) => CartItem(
       id: json['id'] as String,
       productId: json['productId'] as String,
@@ -21,7 +27,12 @@ class CartItem {
       quantity: (json['quantity'] as num).toInt(),
       unitPriceXof: (json['unitPriceXof'] as num).toInt(),
       imageUrl: json['imageUrl'] as String?,
-      categoryId: json['categoryId'] as String?);
+      categoryId: json['categoryId'] as String?,
+      variantId: json['variantId'] as String?,
+      addonIds:
+          (json['addonIds'] as List<dynamic>? ?? const []).cast<String>(),
+      options: (json['options'] as Map<String, dynamic>? ?? const {})
+          .cast<String, String>());
 }
 
 class Cart {

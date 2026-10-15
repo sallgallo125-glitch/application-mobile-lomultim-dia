@@ -37,33 +37,58 @@ void main() {
     expect(addButton.hitTestable(), findsOneWidget);
     await tester.tap(addButton);
     await settle(tester);
-    expect(find.text('Produit ajouté au panier'), findsOneWidget);
-    expect(find.text('Voir le panier'), findsWidgets);
+    expect(find.text('ajouté au panier'), findsOneWidget);
+    expect(find.byIcon(Icons.check_rounded), findsOneWidget);
     expect(cartBadge('1'), findsOneWidget, reason: 'badge du panier');
-    // The confirmation closes by itself (it has an action, so it must not
-    // persist).
-    await tester.pump(const Duration(seconds: 3));
-    await tester.pump(const Duration(seconds: 1));
-    expect(find.text('Produit ajouté au panier'), findsNothing);
+    await tester.tap(find.text('ajouté au panier'));
+    await settle(tester);
+    expect(find.textContaining('HP ProBook 450 G10'), findsOneWidget);
+    expect(find.text('Continuer la commande'), findsOneWidget);
+    expect(find.text('ajouté au panier'), findsNothing);
 
-    // Once added, "+" in the bar raises the cart quantity (same line).
-    expect(find.text('Dans le panier'), findsOneWidget);
-    expect(addButton, findsNothing);
-    await tester.tap(find.byTooltip('Augmenter la quantité'));
+    // Increase the item from the cart after opening it via the toast.
+    await tester.tap(find.byTooltip('Augmenter'));
     await settle(tester);
     expect(cartBadge('2'), findsOneWidget);
 
     await open(tester, '/panier');
     expect(find.textContaining('HP ProBook 450 G10'), findsOneWidget);
     expect(find.text('2'), findsWidgets);
+    expect(find.text('Continuer la commande'), findsOneWidget);
+    expect(find.text('Total estimé'), findsOneWidget);
+    expect(find.text('Utiliser mes points LO+'), findsOneWidget);
+    expect(
+      find.text(
+          'Connectez-vous à votre compte LO+ pour utiliser vos points sur cette commande.'),
+      findsOneWidget,
+    );
+    expect(find.text('Afficher le détail'), findsOneWidget);
+    expect(find.text('Sous-total (2 articles)'), findsNothing);
+    await tester.tap(find.text('Afficher le détail'));
+    await tester.pumpAndSettle();
+    expect(find.text('Masquer le détail'), findsOneWidget);
+    expect(find.text('Sous-total (2 articles)'), findsOneWidget);
+    expect(find.text('Avec un compte LO+'), findsOneWidget);
+    expect(find.text('Connectez-vous pour les cumuler'), findsOneWidget);
+    expect(find.textContaining('/ unité'), findsOneWidget);
 
     // − goes back to 1, delete empties the cart.
     await tester.tap(find.byIcon(Icons.remove));
     await settle(tester);
     expect(cartBadge('2'), findsNothing);
-    await tester.tap(find.byIcon(Icons.close));
+    await tester.tap(find.byTooltip('Retirer l’article'));
     await settle(tester);
     expect(find.textContaining('Votre panier est vide'), findsOneWidget);
+    await tester.tap(find.text('Annuler'));
+    await settle(tester);
+    expect(find.textContaining('HP ProBook 450 G10'), findsOneWidget);
+    await tester.tap(find.byTooltip('Retirer l’article'));
+    await settle(tester);
+    expect(find.textContaining('Votre panier est vide'), findsOneWidget);
+    expect(find.text('Article retiré du panier.'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Article retiré du panier.'), findsNothing);
     appRouter.go('/');
     await settle(tester);
   });

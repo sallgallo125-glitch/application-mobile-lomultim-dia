@@ -13,6 +13,7 @@ import '../widgets/error_state.dart';
 import '../widgets/header_actions.dart';
 import '../widgets/loading_state.dart';
 import '../widgets/search_field.dart';
+import '../utils/icon_mapper.dart';
 import 'photo_search_screen.dart' show startPhotoSearch;
 import '../widgets/shimmer.dart' show shopGridColumnsFor;
 import '../features/catalog/shop_filters.dart';
@@ -29,6 +30,19 @@ const searchSuggestions = [
   'Lenovo',
   'Écran',
 ];
+
+/// Best-rated in-stock products, most reviewed first.
+List<ProductSummary> popularProducts(List<ProductSummary> products,
+    {int count = 8}) {
+  final ranked = products.where((p) => p.inStock).toList()
+    ..sort((a, b) {
+      final byReviews = (b.reviewCount ?? 0).compareTo(a.reviewCount ?? 0);
+      return byReviews != 0
+          ? byReviews
+          : (b.rating ?? 0).compareTo(a.rating ?? 0);
+    });
+  return ranked.take(count).toList();
+}
 
 /// Lower-case text without French accents, so "television" finds "Téléviseur".
 String normalizeSearch(String text) {
@@ -183,6 +197,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               child: _Results(
                 query: _query,
                 results: _results(products, categories),
+                popular: popularProducts(products),
                 onPick: _searchFor,
                 onOpen: (product) {
                   rememberSearch(ref, _query);
@@ -222,8 +237,61 @@ class _Suggestions extends ConsumerWidget {
         const _Title('Suggestions'),
         const SizedBox(height: AppSpacing.md),
         _Pills(items: searchSuggestions, onPick: onPick),
+        const SizedBox(height: AppSpacing.xl),
+        _TrendingCategories(onPick: onPick),
       ],
     );
+  }
+}
+
+/// Category shortcuts: tapping one searches its name.
+class _TrendingCategories extends ConsumerWidget {
+  const _TrendingCategories({required this.onPick});
+  final ValueChanged<String> onPick;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final categories = ref.watch(categoriesProvider).valueOrNull ?? const [];
+    if (categories.isEmpty) return const SizedBox.shrink();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const _Title('Rayons tendance'),
+      const SizedBox(height: AppSpacing.md),
+      GridView.count(
+        crossAxisCount: 2,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        mainAxisSpacing: AppSpacing.sm,
+        crossAxisSpacing: AppSpacing.sm,
+        childAspectRatio: 3.2,
+        children: [
+          for (final category in categories.take(6))
+            Material(
+              color: AppColors.primarySoft,
+              borderRadius: BorderRadius.circular(AppRadii.md),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(AppRadii.md),
+                onTap: () => onPick(category.name),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                  child: Row(children: [
+                    Icon(iconForKey(category.icon),
+                        size: 20, color: AppColors.primary),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                        child: Text(category.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppText.subtitle.copyWith(
+                                fontSize: 13.5,
+                                color: AppColors.primaryDark))),
+                  ]),
+                ),
+              ),
+            ),
+        ],
+      ),
+    ]);
   }
 }
 
@@ -231,9 +299,7 @@ class _Title extends StatelessWidget {
   const _Title(this.text);
   final String text;
   @override
-  Widget build(BuildContext context) => Text(text,
-      style: const TextStyle(
-          fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.text));
+  Widget build(BuildContext context) => Text(text, style: AppText.section);
 }
 
 class _Pills extends StatelessWidget {
@@ -267,10 +333,14 @@ class _Results extends StatelessWidget {
   const _Results(
       {required this.query,
       required this.results,
+      required this.popular,
       required this.onPick,
       required this.onOpen});
   final String query;
   final List<ProductSummary> results;
+
+  /// Shown when nothing matches, so the page never ends empty.
+  final List<ProductSummary> popular;
   final ValueChanged<String> onPick;
   final ValueChanged<ProductSummary> onOpen;
 
@@ -280,16 +350,48 @@ class _Results extends StatelessWidget {
       return ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
-          Text('Aucun résultat pour « $query »',
-              style:
-                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-          const SizedBox(height: AppSpacing.xs),
-          const Text('Vérifiez l’orthographe ou essayez une suggestion.',
-              style: TextStyle(color: AppColors.textSecondary)),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            decoration: BoxDecoration(
+                color: AppColors.primarySoft,
+                borderRadius: BorderRadius.circular(AppRadii.lg)),
+            child: Row(children: [
+              const Icon(Icons.search_off,
+                  size: 36, color: AppColors.primary),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text('Aucun résultat pour « $query »',
+                        style: AppText.subtitle),
+                    const SizedBox(height: 2),
+                    const Text(
+                        'Vérifiez l’orthographe ou essayez une suggestion.',
+                        style: AppText.bodyMuted),
+                  ])),
+            ]),
+          ),
           const SizedBox(height: AppSpacing.xl),
           const _Title('Suggestions'),
           const SizedBox(height: AppSpacing.md),
           _Pills(items: searchSuggestions, onPick: onPick),
+          if (popular.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.xl),
+            const _Title('Les plus populaires'),
+            const SizedBox(height: AppSpacing.md),
+            SizedBox(
+              height: 310 * MediaQuery.textScalerOf(context).scale(1),
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: popular.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(width: AppSpacing.sm),
+                itemBuilder: (context, index) => ProductCardWidget(
+                    product: popular[index], onPressed: onOpen),
+              ),
+            ),
+          ],
         ],
       );
     }

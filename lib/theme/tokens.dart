@@ -49,3 +49,28 @@ class AppSpacing {
   static const double xl = 24;
   static const double xxl = 32;
 }
+
+/// Type scale shared by every screen. Prefer these over ad-hoc `fontSize`
+/// values so titles, body copy and captions stay consistent across pages.
+class AppText {
+  AppText._();
+
+  static const display = TextStyle(
+      fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.text, height: 1.2);
+  static const title = TextStyle(
+      fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.text, height: 1.25);
+  static const section = TextStyle(
+      fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.text);
+  static const subtitle = TextStyle(
+      fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text);
+  static const body = TextStyle(fontSize: 14, color: AppColors.text, height: 1.45);
+  static const bodyMuted =
+      TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.45);
+  static const caption =
+      TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.35);
+  static const label = TextStyle(
+      fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textSecondary,
+      letterSpacing: 0.4);
+  static const price = TextStyle(
+      fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.primary);
+}

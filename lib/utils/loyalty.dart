@@ -2,6 +2,8 @@
 /// §5.1 and §5.2) and DevA -final/src/mocks/fixtures/loyalty.ts.
 library;
 
+import 'package:flutter/painting.dart';
+
 class LoyaltyTier {
   const LoyaltyTier({
     required this.code,
@@ -113,3 +115,11 @@ int redeemablePoints(int balance, int totalXof) {
       : totalXof ~/ loyaltyPointValueXof;
   return max < loyaltyMinRedeemPoints ? 0 : max;
 }
+
+/// Tier colours from the site (TIER_COLORS in src/mocks/fixtures/loyalty.ts).
+const loyaltyTierColors = {
+  'BLEU': Color(0xFF2F5FD0),
+  'SILVER': Color(0xFF9CA3AF),
+  'GOLD': Color(0xFFC7862A),
+  'PLATINUM': Color(0xFF8B8F98),
+};

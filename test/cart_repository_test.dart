@@ -72,13 +72,21 @@ void main() {
         'ram': 'ram-32-go',
         'storage': 'storage-1-to-ssd',
         'os': 'os-windows-11-pro',
-      }, addonIds: ['p-001-souris']);
+      }, addonIds: [
+        'p-001-souris'
+      ]);
       final cart = await repository.getCart();
       final line = cart.items.single;
       // +50 000 (16→32 Go) +75 000 (1 To) +65 000 (Windows) +15 000 (souris)
       expect(line.unitPriceXof, 795000 + 50000 + 75000 + 65000 + 15000);
       expect(line.name,
           'HP ProBook 450 G10 — Intel Core i5 · 32 Go · 1 To SSD · Windows 11 Pro · Souris');
+      expect(line.options, {
+        'ram': 'ram-32-go',
+        'storage': 'storage-1-to-ssd',
+        'os': 'os-windows-11-pro',
+      });
+      expect(line.addonIds, ['p-001-souris']);
     });
 
     test('ajout rapide = configuration par défaut, même ligne', () async {

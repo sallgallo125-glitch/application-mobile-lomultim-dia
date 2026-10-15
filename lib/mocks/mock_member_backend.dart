@@ -386,6 +386,49 @@ class MockMemberBackend {
     },
   ];
 
+  Map<String, Object> exportState() => {
+        'points': points,
+        'voucherSeq': _voucherSeq,
+        'hasConverted': _hasConverted,
+        'movements': movements,
+        'giftSeq': _giftSeq,
+        'digitalSerial': _digitalSerial,
+        'physicalSerial': _physicalSerial,
+        'giftCards': giftCards,
+        'tracking': _tracking,
+      };
+
+  void restoreState(Map<String, dynamic> state) {
+    points = (state['points'] as num).toInt();
+    _voucherSeq = (state['voucherSeq'] as num).toInt();
+    _hasConverted = state['hasConverted'] as bool;
+    _giftSeq = (state['giftSeq'] as num).toInt();
+    _digitalSerial = (state['digitalSerial'] as num).toInt();
+    _physicalSerial = (state['physicalSerial'] as num).toInt();
+    movements
+      ..clear()
+      ..addAll(_mapRows(state['movements']));
+    giftCards
+      ..clear()
+      ..addAll(_mapRows(state['giftCards']));
+    _tracking
+      ..clear()
+      ..addAll(_mapRows(state['tracking']).map(Map<String, Object>.from));
+  }
+
+  List<Map<String, dynamic>> _mapRows(Object? value) {
+    if (value is! List<dynamic>) {
+      throw const FormatException('Stored mock member data must be a list.');
+    }
+    return [
+      for (final row in value)
+        if (row is Map<String, dynamic>)
+          row
+        else
+          throw const FormatException('Stored mock member row is invalid.')
+    ];
+  }
+
   /// Handles the routes this backend owns; null if [path] isn't one of them.
   MockResult? handle(String method, String path, Map<String, dynamic> body) {
     // LO+

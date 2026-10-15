@@ -10,10 +10,11 @@ import 'widgets/card_faces.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Session and favourites survive app restarts.
   final prefs = await SharedPreferences.getInstance();
+  final persistence = await SqliteLocalPersistence.open();
+  await persistence.migrateFrom(prefs);
   runApp(ProviderScope(
-    overrides: [preferencesProvider.overrideWithValue(prefs)],
+    overrides: [localPersistenceProvider.overrideWithValue(persistence)],
     child: const LoMultimediaApp(),
   ));
 }

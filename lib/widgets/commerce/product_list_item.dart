@@ -78,7 +78,9 @@ class ProductListItem extends StatelessWidget {
                             amountXof: product.priceXof,
                             compareAtXof: product.compareAtPriceXof),
                         QuickAddButton(
-                            productId: product.id, inStock: product.inStock),
+                            productId: product.id,
+                            productName: product.name,
+                            inStock: product.inStock),
                       ],
                     ),
                     if (product.rating != null)

@@ -3,14 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../contracts/loyalty.dart';
 import '../features/member/member_providers.dart';
+import '../theme/redesign_fonts.dart';
 import '../theme/tokens.dart';
 import '../utils/currency.dart';
 import '../utils/loyalty.dart';
+import '../widgets/app_header.dart';
 import '../widgets/card_faces.dart';
 import '../widgets/error_state.dart';
 import '../widgets/loading_state.dart';
@@ -143,384 +146,1228 @@ class _LoyaltyCardScreenState extends ConsumerState<LoyaltyCardScreen> {
   }
 }
 
-/// Points history (site: MemberHistory).
-class LoyaltyHistoryScreen extends ConsumerWidget {
+/// Points history (site: MemberHistory), as on the redesign mockup: a dark
+/// balance card with the balance curve and totals, the points awaiting
+/// delivery, then the movements filtered and grouped by month.
+class LoyaltyHistoryScreen extends ConsumerStatefulWidget {
   const LoyaltyHistoryScreen({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final movements = ref.watch(loyaltyMovementsProvider);
-    return SubPage(
-      title: 'Historique des points',
-      fallbackRoute: '/lo',
-      child: movements.when(
-        loading: () => const LoadingState(label: 'Chargement de l’historique…'),
-        error: (e, _) =>
-            ErrorState(onRetry: () => ref.invalidate(loyaltyMovementsProvider)),
-        data: (items) => items.isEmpty
-            ? const Center(child: Text('Aucun mouvement pour le moment.'))
-            : ListView.separated(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                itemCount: items.length + 1,
-                separatorBuilder: (_, __) =>
-                    const SizedBox(height: AppSpacing.xs),
-                itemBuilder: (context, i) {
-                  if (i == items.length) {
-                    return const Padding(
-                      padding: EdgeInsets.only(top: AppSpacing.md),
-                      child: Text(loyaltyRulesNote,
-                          style: TextStyle(
-                              color: AppColors.textSecondary, fontSize: 12)),
-                    );
-                  }
-                  final m = items[i];
-                  final positive = m.points >= 0;
-                  return Card(
-                    child: ListTile(
-                      title: Text(m.label),
-                      subtitle:
-                          Text(m.pending ? '${m.date} · en attente' : m.date),
-                      trailing: Text('${positive ? '+' : ''}${m.points} pts',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              color: m.pending
-                                  ? AppColors.textSecondary
-                                  : positive
-                                      ? AppColors.success
-                                      : AppColors.danger)),
-                    ),
-                  );
-                },
-              ),
-      ),
-    );
-  }
+  ConsumerState<LoyaltyHistoryScreen> createState() =>
+      _LoyaltyHistoryScreenState();
 }
 
-/// Exchange points for rewards (site: MemberExchange).
-class LoyaltyExchangeScreen extends ConsumerWidget {
-  const LoyaltyExchangeScreen({super.key});
+enum _HistFilter { all, earned, used }
 
-  Future<void> _convert(BuildContext context, WidgetRef ref,
-      LoyaltyReward reward, int balance) async {
-    int? points;
-    if (reward.freeValue) {
-      points = await showDialog<int>(
-          context: context,
-          builder: (_) => _VoucherDialog(min: reward.points, max: balance));
-      if (points == null) return;
-    } else {
-      final ok = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-                title: Text(reward.title),
-                content: Text('Échanger ${reward.points} points ?'),
-                actions: [
-                  TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Annuler')),
-                  ElevatedButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text('Échanger')),
-                ],
-              ));
-      if (ok != true) return;
-    }
-    try {
-      final voucher = await ref
-          .read(loyaltyActionsProvider)
-          .convert(reward.id, points: points);
-      if (!context.mounted) return;
-      await showDialog<void>(
-          context: context,
-          builder: (context) => AlertDialog(
-                title: const Text('Échange confirmé'),
-                content: Text([
-                  voucher.title,
-                  if (voucher.valueXof != null) formatXof(voucher.valueXof!),
-                  'Code : ${voucher.code}',
-                  voucher.validUntil,
-                ].join('\n')),
-                actions: [
-                  TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('OK')),
-                ],
-              ));
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(errorMessage(e, 'Échange impossible. Réessayez.'))));
-      }
-    }
-  }
+class _LoyaltyHistoryScreenState extends ConsumerState<LoyaltyHistoryScreen> {
+  _HistFilter _filter = _HistFilter.all;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final rewards = ref.watch(loyaltyRewardsProvider);
-    final balance = ref.watch(loyaltyMemberProvider).value?.points ?? 0;
-    return SubPage(
-      title: 'Échanger mes points',
-      subtitle:
-          '$balance points disponibles · 1 point = ${formatXof(loyaltyPointValueXof)}',
-      fallbackRoute: '/lo',
-      child: rewards.when(
-        loading: () => const LoadingState(label: 'Chargement des récompenses…'),
-        error: (e, _) =>
-            ErrorState(onRetry: () => ref.invalidate(loyaltyRewardsProvider)),
-        data: (items) => ListView.separated(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          itemCount: items.length,
-          separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-          itemBuilder: (context, i) {
-            final r = items[i];
-            final affordable = balance >= r.points;
-            return Card(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) {
+    final movements = ref.watch(loyaltyMovementsProvider);
+    final account = ref.watch(accountSummaryProvider).value;
+    final balance = ref.watch(loyaltyMemberProvider).value?.points ??
+        account?.loyalty.points;
+    final tier =
+        account == null ? null : loyaltyTierFor(account.loyalty.tierCode);
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: RedesignFonts(
+        child: SafeArea(
+          bottom: false,
+          child: Column(children: [
+            _MockupBar(
+                title: 'Historique des points',
+                subtitle: tier == null ? null : 'Membre ${tier.name}',
+                onBack: () =>
+                    context.canPop() ? context.pop() : context.go('/lo')),
+            movements.when(
+              loading: () =>
+                  const LoadingState(label: 'Chargement de l’historique…'),
+              error: (e, _) => ErrorState(
+                  onRetry: () => ref.invalidate(loyaltyMovementsProvider)),
+              data: (items) {
+                final h = _History.from(items, balance);
+                final list = h.settled
+                    .where((e) => switch (_filter) {
+                          _HistFilter.all => true,
+                          _HistFilter.earned => e.m.points > 0,
+                          _HistFilter.used => e.m.points < 0,
+                        })
+                    .toList();
+                final months = <String, List<_Entry>>{};
+                for (final e in list) {
+                  (months[e.month] ??= []).add(e);
+                }
+                return Expanded(
+                  child: ListView(
+                    padding: EdgeInsets.only(
+                        bottom: AppSpacing.xl +
+                            MediaQuery.of(context).padding.bottom),
                     children: [
-                      Text(r.title,
-                          style: const TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 2),
-                      Text(r.description,
-                          style: const TextStyle(
-                              color: AppColors.textSecondary, fontSize: 13)),
-                      const SizedBox(height: AppSpacing.sm),
-                      Wrap(
-                        alignment: WrapAlignment.spaceBetween,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: AppSpacing.sm,
-                        runSpacing: AppSpacing.xs,
-                        children: [
-                          Text(
-                              r.freeValue
-                                  ? 'Dès ${r.points} points'
-                                  : '${r.points} points',
-                              style: const TextStyle(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w800)),
-                          if (r.stock != null && !r.outOfStock)
-                            Text('${r.stock} en stock',
-                                style: const TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 12)),
-                          ElevatedButton(
-                            onPressed: r.outOfStock || !affordable
-                                ? null
-                                : () => _convert(context, ref, r, balance),
-                            child: Text(r.outOfStock
-                                ? 'Épuisé'
-                                : affordable
-                                    ? 'Échanger'
-                                    : 'Points insuffisants'),
-                          ),
-                        ],
+                      _BalanceHero(history: h),
+                      if (h.expiry != null) _ExpiryNote(h.expiry!),
+                      if (h.pending.isNotEmpty) ...[
+                        const _HistTitle('En attente de livraison'),
+                        _PendingBlock(h.pending),
+                      ],
+                      const _HistTitle('Mouvements', bottom: 0),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                        child: _Segmented(
+                          labels: [
+                            'Tout (${h.settled.length})',
+                            'Gagnés (${h.settled.where((e) => e.m.points > 0).length})',
+                            'Utilisés (${h.settled.where((e) => e.m.points < 0).length})',
+                          ],
+                          selected: _filter.index,
+                          onSelect: (i) =>
+                              setState(() => _filter = _HistFilter.values[i]),
+                        ),
                       ),
-                    ]),
-              ),
-            );
-          },
+                      if (months.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 28),
+                          child: Text('Aucun mouvement pour ce filtre.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: _muted, fontSize: 14)),
+                        )
+                      else
+                        for (final entry in months.entries) ...[
+                          _MonthHeader(
+                              entry.key,
+                              entry.value
+                                  .fold<int>(0, (s, e) => s + e.m.points)),
+                          _BorderedList(children: [
+                            for (final e in entry.value) _MovementRow(e),
+                          ]),
+                        ],
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 22, 16, 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            FilledButton(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: AppColors.white,
+                                minimumSize: const Size(0, 52),
+                                shape: const StadiumBorder(),
+                                textStyle: const TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.w600),
+                              ),
+                              onPressed: () => context.go('/panier'),
+                              child:
+                                  const Text('Utiliser mes points au panier'),
+                            ),
+                            const SizedBox(height: 4),
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.primary,
+                                minimumSize: const Size(0, 44),
+                                textStyle: const TextStyle(
+                                    fontSize: 15, fontWeight: FontWeight.w600),
+                              ),
+                              onPressed: () => context.go('/lo'),
+                              child:
+                                  const Text('Comment gagner plus de points'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ]),
         ),
       ),
     );
   }
 }
 
-class _VoucherDialog extends StatefulWidget {
-  const _VoucherDialog({required this.min, required this.max});
-  final int min;
-  final int max;
-  @override
-  State<_VoucherDialog> createState() => _VoucherDialogState();
+/// Mockup colours for the history page.
+const _mist = Color(0xFFF1F3F9);
+const _sunTint = Color(0xFFFFF4D9);
+const _sun = Color(0xFFFFC23D);
+const _warn = Color(0xFF9A5B00);
+const _ok = Color(0xFF0F7A55);
+const _okTint = Color(0xFFDDF4EA);
+const _redTint = Color(0xFFFDEBEC);
+const _faint = Color(0xFF8A91A8);
+const _onBand = Color(0xFFDDE2F5);
+
+const _frMonths = [
+  'janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', //
+  'août', 'septembre', 'octobre', 'novembre', 'décembre',
+];
+const _frShort = [
+  'janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', //
+  'août', 'sept.', 'oct.', 'nov.', 'déc.',
+];
+
+/// "24 septembre 2026" (or "1er …") → date; null if it does not parse.
+DateTime? _parseFrDate(String s) {
+  final w = s.trim().split(RegExp(r'\s+'));
+  if (w.length < 3) return null;
+  final d = int.tryParse(w[0].replaceAll('er', ''));
+  final m = _frMonths.indexOf(w[1].toLowerCase());
+  final y = int.tryParse(w[2]);
+  if (d == null || m < 0 || y == null) return null;
+  return DateTime(y, m + 1, d);
 }
 
-class _VoucherDialogState extends State<_VoucherDialog> {
-  late double _points = widget.min.toDouble();
+String _shortDate(DateTime d) =>
+    '${d.day == 1 ? '1er' : d.day} ${_frShort[d.month - 1]}';
+
+/// One settled movement with its date and the balance right after it.
+class _Entry {
+  _Entry(this.m, this.date, this.balanceAfter);
+  final LoyaltyMovement m;
+  final DateTime? date;
+  final int balanceAfter;
+
+  String get shortDate => date == null ? m.date : _shortDate(date!);
+  String get month {
+    if (date == null) return 'Plus ancien';
+    final name = _frMonths[date!.month - 1];
+    return '${name[0].toUpperCase()}${name.substring(1)} ${date!.year}';
+  }
+}
+
+/// Figures behind the page, from the movements (newest first).
+class _History {
+  _History(this.balance, this.settled, this.pending);
+
+  factory _History.from(List<LoyaltyMovement> items, int? balance) {
+    final settledMoves = items.where((m) => !m.pending).toList();
+    final total = settledMoves.fold<int>(0, (s, m) => s + m.points);
+    var after = balance ?? total;
+    final settled = <_Entry>[];
+    for (final m in settledMoves) {
+      settled.add(_Entry(m, _parseFrDate(m.date), after));
+      after -= m.points;
+    }
+    return _History(
+        balance ?? total, settled, items.where((m) => m.pending).toList());
+  }
+
+  final int balance;
+  final List<_Entry> settled;
+  final List<LoyaltyMovement> pending;
+
+  int get earned =>
+      settled.where((e) => e.m.points > 0).fold(0, (s, e) => s + e.m.points);
+  int get used =>
+      settled.where((e) => e.m.points < 0).fold(0, (s, e) => s - e.m.points);
+  int get pendingTotal => pending.fold(0, (s, m) => s + m.points);
+
+  /// Points are valid 12 months: the oldest earning expires first.
+  ({int points, DateTime date})? get expiry {
+    final earning =
+        settled.where((e) => e.m.points > 0 && e.date != null).toList();
+    if (earning.isEmpty) return null;
+    final oldest = earning.last;
+    final d = oldest.date!;
+    return (
+      points: oldest.m.points,
+      date: DateTime(d.year + 1, d.month, d.day)
+    );
+  }
+
+  /// Dated movements, oldest first, for the curve.
+  List<_Entry> get chronological =>
+      settled.where((e) => e.date != null).toList().reversed.toList();
+}
+
+/// White bar of the mockup's sub pages: round grey back button and title.
+class _MockupBar extends StatelessWidget {
+  const _MockupBar({required this.title, this.subtitle, required this.onBack});
+  final String title;
+  final String? subtitle;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        constraints: const BoxConstraints(minHeight: 60),
+        padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          border: Border(bottom: BorderSide(color: AppColors.border)),
+        ),
+        child: Row(children: [
+          AppBackButton(onPressed: onBack),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Semantics(
+              header: true,
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: displayFont(const TextStyle(
+                            color: AppColors.text,
+                            fontSize: 21,
+                            height: 1.1,
+                            fontWeight: FontWeight.w700))),
+                    if (subtitle != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(subtitle!,
+                            style:
+                                const TextStyle(color: _muted, fontSize: 12)),
+                      ),
+                  ]),
+            ),
+          ),
+        ]),
+      );
+}
+
+/// Dark card: balance and its value, the balance curve, three totals.
+class _BalanceHero extends StatefulWidget {
+  const _BalanceHero({required this.history});
+  final _History history;
+
+  @override
+  State<_BalanceHero> createState() => _BalanceHeroState();
+}
+
+class _BalanceHeroState extends State<_BalanceHero> {
+  int? _selected;
+
   @override
   Widget build(BuildContext context) {
-    final points = _points.round();
-    return AlertDialog(
-      title: const Text("Bon d'achat"),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text('$points points = ${formatXof(points * loyaltyPointValueXof)}',
-            style: const TextStyle(fontWeight: FontWeight.w800)),
-        if (widget.max > widget.min)
-          Slider(
-              value: _points,
-              min: widget.min.toDouble(),
-              max: widget.max.toDouble(),
-              divisions: widget.max - widget.min,
-              onChanged: (v) => setState(() => _points = v)),
+    final h = widget.history;
+    final ev = h.chronological;
+    final sel = _selected == null ? null : ev[_selected!];
+    final since = ev.isEmpty ? 0 : h.balance - ev.first.m.points;
+    final caption = sel == null
+        ? TextSpan(children: [
+            const TextSpan(
+                text: 'Aujourd’hui ',
+                style: TextStyle(
+                    color: AppColors.white, fontWeight: FontWeight.w600)),
+            TextSpan(
+                text: '${h.balance} points, ${since >= 0 ? '+' : '−'}'
+                    '${since.abs()} depuis votre inscription'),
+          ])
+        : TextSpan(children: [
+            TextSpan(
+                text: '${sel.shortDate} ',
+                style: const TextStyle(
+                    color: AppColors.white, fontWeight: FontWeight.w600)),
+            TextSpan(
+                text: '${sel.m.label}, ${sel.m.points > 0 ? '+' : '−'}'
+                    '${sel.m.points.abs()} : solde ${sel.balanceAfter} points'),
+          ]);
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      decoration: BoxDecoration(
+          color: AppColors.primaryDark,
+          borderRadius: BorderRadius.circular(24)),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(children: [
+        Positioned(
+          right: -250,
+          top: -60,
+          child: IgnorePointer(
+            child: Transform.rotate(
+              angle: -0.21,
+              child: Container(
+                width: 420,
+                height: 170,
+                decoration: BoxDecoration(
+                  borderRadius:
+                      const BorderRadius.all(Radius.elliptical(210, 85)),
+                  border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.08), width: 1.5),
+                ),
+              ),
+            ),
+          ),
+        ),
+        Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Solde actuel',
+                          style: TextStyle(color: _onBand, fontSize: 12.5)),
+                      const SizedBox(height: 6),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text.rich(
+                          TextSpan(children: [
+                            TextSpan(text: '${h.balance}'),
+                            const TextSpan(
+                                text: ' points',
+                                style: TextStyle(
+                                    fontSize: 18,
+                                    letterSpacing: 0,
+                                    fontWeight: FontWeight.w700)),
+                          ]),
+                          style: displayFont(const TextStyle(
+                              color: AppColors.white,
+                              fontSize: 56,
+                              height: 0.9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -1.4,
+                              fontFeatures: [FontFeature.tabularFigures()])),
+                        ),
+                      ),
+                    ]),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const Text('Valeur en bon d’achat',
+                          style: TextStyle(color: _onBand, fontSize: 12.5)),
+                      const SizedBox(height: 2),
+                      Text(formatXof(h.balance * loyaltyPointValueXof),
+                          style: const TextStyle(
+                              color: AppColors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              fontFeatures: [FontFeature.tabularFigures()])),
+                    ]),
+              ),
+            ]),
+          ),
+          if (ev.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _BalanceChart(
+                      events: ev,
+                      balance: h.balance,
+                      selected: _selected,
+                      onSelect: (i) => setState(() => _selected = i),
+                    ),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 36),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text.rich(caption,
+                            style: const TextStyle(
+                                color: _onBand,
+                                fontSize: 12.5,
+                                height: 1.4,
+                                fontFeatures: [FontFeature.tabularFigures()])),
+                      ),
+                    ),
+                  ]),
+            ),
+          Container(
+            margin: const EdgeInsets.only(top: 14),
+            decoration: BoxDecoration(
+                border: Border(
+                    top: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.1)))),
+            child: IntrinsicHeight(
+              child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _Stat('+${h.earned}', 'Gagnés', const Color(0xFF5FD3A2)),
+                    VerticalDivider(
+                        width: 1, color: Colors.white.withValues(alpha: 0.1)),
+                    _Stat('−${h.used}', 'Utilisés', const Color(0xFFFF8A8D)),
+                    VerticalDivider(
+                        width: 1, color: Colors.white.withValues(alpha: 0.1)),
+                    _Stat('+${h.pendingTotal}', 'En attente', _sun),
+                  ]),
+            ),
+          ),
+        ]),
       ]),
-      actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler')),
-        ElevatedButton(
-            onPressed: () => Navigator.pop(context, points),
-            child: const Text('Échanger')),
-      ],
     );
   }
 }
 
-/// Referral programme (site: MemberReferral).
+class _Stat extends StatelessWidget {
+  const _Stat(this.value, this.label, this.dot);
+  final String value;
+  final String label;
+  final Color dot;
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 12, 8, 14),
+          child: Column(children: [
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(value,
+                  style: displayFont(const TextStyle(
+                      color: AppColors.white,
+                      fontSize: 21,
+                      fontWeight: FontWeight.w800,
+                      fontFeatures: [FontFeature.tabularFigures()]))),
+            ),
+            const SizedBox(height: 2),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Container(
+                  width: 7,
+                  height: 7,
+                  decoration:
+                      BoxDecoration(color: dot, shape: BoxShape.circle)),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: _onBand, fontSize: 12)),
+              ),
+            ]),
+          ]),
+        ),
+      );
+}
+
+/// Stepped balance curve; tap or drag over it to select a movement.
+class _BalanceChart extends StatelessWidget {
+  const _BalanceChart(
+      {required this.events,
+      required this.balance,
+      required this.selected,
+      required this.onSelect});
+  final List<_Entry> events;
+  final int balance;
+  final int? selected;
+  final ValueChanged<int?> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final start = events.first.date!;
+    final today = DateTime.now();
+    final end = today.isAfter(events.last.date!) ? today : events.last.date!;
+    final span = end.difference(start).inDays.clamp(1, 100000);
+    final xs = [
+      for (final e in events) e.date!.difference(start).inDays / span
+    ];
+    final mid = start.add(Duration(days: span ~/ 2));
+    final semantics = 'Évolution du solde de points du ${_shortDate(start)} '
+        'au ${_shortDate(end)} : de ${events.first.balanceAfter} à '
+        '$balance points';
+
+    return LayoutBuilder(builder: (context, c) {
+      void pick(double dx) {
+        final t = ((dx - 8) / (c.maxWidth - 16)).clamp(0.0, 1.0);
+        var best = 0;
+        for (var i = 1; i < xs.length; i++) {
+          if ((xs[i] - t).abs() < (xs[best] - t).abs()) best = i;
+        }
+        onSelect(best);
+      }
+
+      return Semantics(
+        label: semantics,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (d) => pick(d.localPosition.dx),
+          onHorizontalDragUpdate: (d) => pick(d.localPosition.dx),
+          onHorizontalDragEnd: (_) => onSelect(null),
+          child: CustomPaint(
+            size: Size(c.maxWidth, 96),
+            painter: _ChartPainter(
+              xs: xs,
+              balances: [for (final e in events) e.balanceAfter],
+              balance: balance,
+              selected: selected,
+              labels: (_shortDate(start), _shortDate(mid), _shortDate(end)),
+            ),
+          ),
+        ),
+      );
+    });
+  }
+}
+
+class _ChartPainter extends CustomPainter {
+  _ChartPainter(
+      {required this.xs,
+      required this.balances,
+      required this.balance,
+      required this.selected,
+      required this.labels});
+  final List<double> xs;
+  final List<int> balances;
+  final int balance;
+  final int? selected;
+  final (String, String, String) labels;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const base = 64.0, top = 12.0;
+    final maxV =
+        [...balances, balance, 50].reduce((a, b) => a > b ? a : b) * 1.1;
+    double x(double t) => 8 + t * (size.width - 16);
+    double y(num v) => base - v / maxV * (base - top);
+
+    // 50 pts guide and base line.
+    final guide = Paint()
+      ..color = Colors.white.withValues(alpha: 0.12)
+      ..strokeWidth = 1;
+    for (var d = x(0); d < x(1); d += 7) {
+      canvas.drawLine(Offset(d, y(50)), Offset(d + 3, y(50)), guide);
+    }
+    _text(canvas, '50 pts', Offset(x(0), y(50) - 17), 10.5, _onBand);
+    canvas.drawLine(Offset(x(0), base), Offset(x(1), base),
+        Paint()..color = Colors.white.withValues(alpha: 0.2));
+
+    // Stepped line.
+    final line = Path()..moveTo(x(0), y(balances.first));
+    for (var i = 1; i < xs.length; i++) {
+      line
+        ..lineTo(x(xs[i]), y(balances[i - 1]))
+        ..lineTo(x(xs[i]), y(balances[i]));
+    }
+    line.lineTo(x(1), y(balances.last));
+    final area = Path.from(line)
+      ..lineTo(x(1), base)
+      ..lineTo(x(0), base)
+      ..close();
+    canvas.drawPath(
+        area, Paint()..color = Colors.white.withValues(alpha: 0.07));
+    canvas.drawPath(
+        line,
+        Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..strokeJoin = StrokeJoin.round);
+
+    for (var i = 0; i < xs.length; i++) {
+      final o = Offset(x(xs[i]), y(balances[i]));
+      canvas.drawCircle(o, 4, Paint()..color = AppColors.primaryDark);
+      canvas.drawCircle(
+          o,
+          4,
+          Paint()
+            ..color = Colors.white
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.5);
+    }
+
+    // Today.
+    final now = Offset(x(1), y(balance));
+    canvas.drawCircle(now, 6, Paint()..color = AppColors.primaryDark);
+    canvas.drawCircle(now, 5, Paint()..color = _sun);
+    _text(canvas, '$balance', Offset(now.dx, now.dy - 25), 12, Colors.white,
+        bold: true, alignEnd: true);
+
+    // Selection.
+    final s = selected;
+    if (s != null) {
+      final sx = x(xs[s]);
+      canvas.drawLine(Offset(sx, 8), Offset(sx, base),
+          Paint()..color = _sun.withValues(alpha: 0.6));
+      final o = Offset(sx, y(balances[s]));
+      canvas.drawCircle(o, 8, Paint()..color = AppColors.primaryDark);
+      canvas.drawCircle(o, 6, Paint()..color = _sun);
+    }
+
+    _text(canvas, labels.$1, Offset(x(0), 74), 11, _onBand);
+    _text(canvas, labels.$2, Offset(x(0.5), 74), 11, _onBand, center: true);
+    _text(canvas, labels.$3, Offset(x(1), 74), 11, _onBand, alignEnd: true);
+  }
+
+  void _text(Canvas canvas, String s, Offset at, double size, Color color,
+      {bool bold = false, bool alignEnd = false, bool center = false}) {
+    final tp = TextPainter(
+      text: TextSpan(
+          text: s,
+          style: TextStyle(
+              color: color,
+              fontSize: size,
+              fontWeight: bold ? FontWeight.w700 : FontWeight.w400)),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final dx = alignEnd
+        ? at.dx - tp.width
+        : center
+            ? at.dx - tp.width / 2
+            : at.dx;
+    tp.paint(canvas, Offset(dx, at.dy));
+  }
+
+  @override
+  bool shouldRepaint(_ChartPainter old) =>
+      old.selected != selected ||
+      old.balance != balance ||
+      old.balances != balances;
+}
+
+class _ExpiryNote extends StatelessWidget {
+  const _ExpiryNote(this.expiry);
+  final ({int points, DateTime date}) expiry;
+
+  @override
+  Widget build(BuildContext context) {
+    final d = expiry.date;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration:
+          BoxDecoration(color: _mist, borderRadius: BorderRadius.circular(14)),
+      child: Row(children: [
+        const Icon(Icons.schedule_rounded, size: 18, color: AppColors.primary),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text.rich(
+            TextSpan(children: [
+              const TextSpan(
+                  text: 'Vos points restent valables 12 mois. '
+                      'Prochaine échéance : '),
+              TextSpan(
+                  text: '${expiry.points} points le ${_shortDate(d)} '
+                      '${d.year}',
+                  style: const TextStyle(
+                      color: _ink, fontWeight: FontWeight.w600)),
+              const TextSpan(text: '.'),
+            ]),
+            style: const TextStyle(color: _muted, fontSize: 13, height: 1.35),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+class _HistTitle extends StatelessWidget {
+  const _HistTitle(this.title, {this.bottom = 10});
+  final String title;
+  final double bottom;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: EdgeInsets.fromLTRB(16, 20, 16, bottom),
+        child: Semantics(
+          header: true,
+          child: Text(title,
+              style: displayFont(const TextStyle(
+                  color: _ink,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.2))),
+        ),
+      );
+}
+
+/// Grey segmented control (Tout / Gagnés / Utilisés).
+class _Segmented extends StatelessWidget {
+  const _Segmented(
+      {required this.labels, required this.selected, required this.onSelect});
+  final List<String> labels;
+  final int selected;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+            color: _mist, borderRadius: BorderRadius.circular(14)),
+        child: Row(children: [
+          for (var i = 0; i < labels.length; i++)
+            Expanded(
+              child: Semantics(
+                selected: i == selected,
+                button: true,
+                child: GestureDetector(
+                  onTap: () => onSelect(i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    height: 38,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: i == selected ? AppColors.white : null,
+                      borderRadius: BorderRadius.circular(11),
+                      boxShadow: i == selected
+                          ? const [
+                              BoxShadow(
+                                  color: Color(0x240E1430),
+                                  offset: Offset(0, 1),
+                                  blurRadius: 3)
+                            ]
+                          : null,
+                    ),
+                    child: Text(labels[i],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: i == selected ? _ink : _muted,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600)),
+                  ),
+                ),
+              ),
+            ),
+        ]),
+      );
+}
+
+class _MonthHeader extends StatelessWidget {
+  const _MonthHeader(this.month, this.net);
+  final String month;
+  final int net;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+        child: Row(children: [
+          Expanded(
+              child: Text(month,
+                  style: const TextStyle(
+                      color: _muted,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600))),
+          Text('${net >= 0 ? '+' : '−'}${net.abs()} pts',
+              style: const TextStyle(
+                  color: _muted,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: [FontFeature.tabularFigures()])),
+        ]),
+      );
+}
+
+/// Rounded card around a list of rows, separated by thin lines.
+class _BorderedList extends StatelessWidget {
+  const _BorderedList({required this.children, this.dashed = false});
+  final List<Widget> children;
+  final bool dashed;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = Column(children: [
+      for (var i = 0; i < children.length; i++) ...[
+        if (i > 0) const Divider(height: 1, color: AppColors.border),
+        children[i],
+      ],
+    ]);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: dashed
+          ? CustomPaint(
+              foregroundPainter:
+                  _DashedBorderPainter(color: AppColors.border, width: 1.5),
+              child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20), child: rows),
+            )
+          : Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.border),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: rows,
+            ),
+    );
+  }
+}
+
+/// Row shape shared by the movements and the pending orders.
+class _HhRow extends StatelessWidget {
+  const _HhRow(
+      {required this.icon,
+      required this.iconBg,
+      required this.iconFg,
+      required this.title,
+      this.sub,
+      this.detail,
+      required this.amount,
+      required this.amountColor,
+      required this.unit,
+      required this.semantics,
+      this.onTap});
+  final IconData icon;
+  final Color iconBg;
+  final Color iconFg;
+  final String title;
+  final String? sub;
+  final String? detail;
+  final String amount;
+  final Color amountColor;
+  final String unit;
+  final String semantics;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final row = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      child: Row(children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+              color: iconBg, borderRadius: BorderRadius.circular(13)),
+          child: Icon(icon, size: 20, color: iconFg),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title,
+                style: const TextStyle(
+                    color: _ink,
+                    fontSize: 14.5,
+                    height: 1.3,
+                    fontWeight: FontWeight.w600)),
+            if (sub != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(sub!,
+                    style: const TextStyle(
+                        color: _muted, fontSize: 12.5, height: 1.35)),
+              ),
+            if (detail != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(detail!,
+                    style: const TextStyle(
+                        color: _faint,
+                        fontSize: 12,
+                        height: 1.35,
+                        fontFeatures: [FontFeature.tabularFigures()])),
+              ),
+          ]),
+        ),
+        const SizedBox(width: 8),
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text(amount,
+              style: displayFont(TextStyle(
+                  color: amountColor,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  fontFeatures: const [FontFeature.tabularFigures()]))),
+          const SizedBox(height: 2),
+          Text(unit, style: const TextStyle(color: _faint, fontSize: 11.5)),
+        ]),
+      ]),
+    );
+    return Semantics(
+      label: semantics,
+      button: onTap != null,
+      excludeSemantics: true,
+      child: onTap == null ? row : InkWell(onTap: onTap, child: row),
+    );
+  }
+}
+
+class _PendingBlock extends StatelessWidget {
+  const _PendingBlock(this.pending);
+  final List<LoyaltyMovement> pending;
+
+  @override
+  Widget build(BuildContext context) => _BorderedList(dashed: true, children: [
+        for (final m in pending)
+          _HhRow(
+            icon: Icons.schedule_rounded,
+            iconBg: _sunTint,
+            iconFg: _warn,
+            // "Commande LO-… (en attente de livraison)" → "Commande LO-…".
+            title: m.label.replaceAll(RegExp(r'\s*\(.*\)\s*$'), ''),
+            sub: '${m.date}, crédités à la livraison',
+            amount: '+${m.points}',
+            amountColor: _muted,
+            unit: 'en attente',
+            semantics: '${m.label}, ${m.points} points crédités à la livraison',
+            onTap: () => context.push('/commandes'),
+          ),
+      ]);
+}
+
+class _MovementRow extends StatelessWidget {
+  const _MovementRow(this.e);
+  final _Entry e;
+
+  @override
+  Widget build(BuildContext context) {
+    final m = e.m;
+    final l = m.label.toLowerCase();
+    final (IconData icon, Color bg, Color fg) = l.contains('parrain')
+        ? (Icons.group_add_rounded, _okTint, _ok)
+        : m.points < 0
+            ? (Icons.local_offer_rounded, _redTint, AppColors.danger)
+            : l.contains('commande') || l.contains('achat')
+                ? (Icons.storefront_rounded, _loTint, AppColors.primary)
+                : (Icons.star_rounded, _sunTint, _warn);
+    final positive = m.points > 0;
+    final amount = '${positive ? '+' : '−'}${m.points.abs()}';
+    return _HhRow(
+      icon: icon,
+      iconBg: bg,
+      iconFg: fg,
+      title: m.label,
+      detail: '${e.shortDate}, solde après : ${e.balanceAfter} pts',
+      amount: amount,
+      amountColor: positive ? _ok : AppColors.danger,
+      unit: 'pts',
+      semantics: '${m.label}, ${m.date}, $amount points, '
+          'solde après ${e.balanceAfter} points',
+    );
+  }
+}
+
+/// Referral programme (site: MemberReferral), as on the redesign mockup.
 class LoyaltyReferralScreen extends ConsumerWidget {
   const LoyaltyReferralScreen({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final data = ref.watch(loyaltyReferralsProvider);
-    return SubPage(
-      title: 'Parrainage',
-      fallbackRoute: '/lo',
-      child: data.when(
-        loading: () => const LoadingState(label: 'Chargement du parrainage…'),
-        error: (e, _) =>
-            ErrorState(onRetry: () => ref.invalidate(loyaltyReferralsProvider)),
-        data: (r) {
-          final message =
-              'Rejoins LO+ avec mon code ${r.code} : tu gagnes ${r.refereePoints} points sur ton premier achat chez LO Multimédia.';
-          return ListView(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              children: [
-                Text(
-                    'Vous gagnez ${r.referrerPoints} points par filleul actif (premier achat d’au moins ${formatXof(r.minPurchaseXof)}). Votre filleul reçoit ${r.refereePoints} points.',
-                    style: const TextStyle(fontSize: 15)),
-                const SizedBox(height: AppSpacing.md),
-                Card(
-                  color: AppColors.primarySoft,
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    child: Column(children: [
-                      const Text('Votre code',
-                          style: TextStyle(color: AppColors.textSecondary)),
-                      SelectableText(r.code,
-                          style: const TextStyle(
-                              color: AppColors.primary,
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 2)),
-                      const SizedBox(height: AppSpacing.sm),
-                      Wrap(
-                          spacing: AppSpacing.sm,
-                          runSpacing: AppSpacing.sm,
-                          children: [
-                            OutlinedButton.icon(
-                                onPressed: () async {
-                                  await Clipboard.setData(
-                                      ClipboardData(text: r.code));
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                            content: Text('Code copié')));
-                                  }
-                                },
-                                icon: const Icon(Icons.copy),
-                                label: const Text('Copier')),
-                            ElevatedButton.icon(
-                                onPressed: () => launchUrl(
-                                    Uri.parse(
-                                        'https://wa.me/?text=${Uri.encodeComponent(message)}'),
-                                    mode: LaunchMode.externalApplication),
-                                icon: const Icon(Icons.share),
-                                label: const Text('Partager sur WhatsApp')),
-                          ]),
-                    ]),
-                  ),
-                ),
-                PageSectionTitle('Mes filleuls (${r.referrals.length})'),
-                if (r.referrals.isEmpty)
-                  const Text('Aucun filleul pour le moment.')
-                else
-                  for (final f in r.referrals)
-                    Card(
-                      child: ListTile(
-                        title: Text(f.name),
-                        subtitle: Text(f.status == 'ACTIVE'
-                            ? 'Filleul actif'
-                            : 'Inscrit · en attente de son premier achat'),
-                        trailing: Text(f.points > 0 ? '+${f.points} pts' : '—',
-                            style: const TextStyle(
-                                color: AppColors.success,
-                                fontWeight: FontWeight.w800)),
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: RedesignFonts(
+        child: SafeArea(
+          child: Column(children: [
+            _MockupBar(
+                title: 'Parrainage',
+                onBack: () =>
+                    context.canPop() ? context.pop() : context.go('/lo')),
+            data.when(
+              loading: () =>
+                  const LoadingState(label: 'Chargement du parrainage…'),
+              error: (e, _) => ErrorState(
+                  onRetry: () => ref.invalidate(loyaltyReferralsProvider)),
+              data: (r) {
+                final message = 'Rejoins LO+ avec mon code ${r.code} : tu '
+                    'gagnes ${r.refereePoints} points sur ton premier achat '
+                    'chez LO Multimédia.';
+                return Expanded(
+                  child: Column(children: [
+                    Expanded(
+                      child: ListView(children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 24, 16, 4),
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Semantics(
+                                  header: true,
+                                  child: Text(
+                                      'Parrainez un proche, gagnez '
+                                      '${r.referrerPoints} points',
+                                      style: displayFont(const TextStyle(
+                                          color: _ink,
+                                          fontSize: 36,
+                                          height: 1.02,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: -0.7))),
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                    'Votre filleul reçoit ${r.refereePoints} points '
+                                    'dès son premier achat, et vous '
+                                    '${r.referrerPoints} points, soit '
+                                    '${formatXof(r.referrerPoints * loyaltyPointValueXof)} '
+                                    'de réduction.',
+                                    style: const TextStyle(
+                                        color: _muted,
+                                        fontSize: 15,
+                                        height: 1.5)),
+                              ]),
+                        ),
+                        _CodeTicket(code: r.code),
+                        const _MockupSection('Comment ça se passe'),
+                        const _SeqStep(1, 'Partagez votre code',
+                            'Par WhatsApp, SMS ou de vive voix.'),
+                        const _SeqStep(2, 'Votre proche l’utilise',
+                            'À la création de son compte ou en caisse.'),
+                        const _SeqStep(3, 'Vous gagnez tous les deux',
+                            'Les points arrivent après son premier achat.'),
+                        const SizedBox(height: AppSpacing.lg),
+                      ]),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: AppColors.white,
+                            minimumSize: const Size(0, 52),
+                            shape: const StadiumBorder(),
+                            textStyle: const TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.w600),
+                          ),
+                          onPressed: () => launchUrl(
+                              Uri.parse('https://wa.me/?text='
+                                  '${Uri.encodeComponent(message)}'),
+                              mode: LaunchMode.externalApplication),
+                          icon: const Icon(Icons.share_rounded, size: 20),
+                          label: const Text('Partager mon code'),
+                        ),
                       ),
                     ),
-              ]);
-        },
+                  ]),
+                );
+              },
+            ),
+          ]),
+        ),
       ),
     );
   }
 }
 
-/// Challenges and badges (site: MemberChallenges).
-class LoyaltyChallengesScreen extends ConsumerWidget {
-  const LoyaltyChallengesScreen({super.key});
+const _muted = Color(0xFF59627F);
+const _ink = Color(0xFF0E1430);
+const _loTint = Color(0xFFE7EBFA);
+
+/// Dashed blue ticket holding the referral code and a copy button.
+class _CodeTicket extends StatelessWidget {
+  const _CodeTicket({required this.code});
+  final String code;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final data = ref.watch(loyaltyChallengesProvider);
-    return SubPage(
-      title: 'Défis et badges',
-      fallbackRoute: '/lo',
-      child: data.when(
-        loading: () => const LoadingState(label: 'Chargement des défis…'),
-        error: (e, _) => ErrorState(
-            onRetry: () => ref.invalidate(loyaltyChallengesProvider)),
-        data: (d) =>
-            ListView(padding: const EdgeInsets.all(AppSpacing.lg), children: [
-          const Text('Défis en cours',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-          const SizedBox(height: AppSpacing.sm),
-          for (final c in d.challenges)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(c.label,
-                          style: const TextStyle(fontWeight: FontWeight.w800)),
-                      Text(
-                          '${c.reward} · ${c.frequency == 'MONTHLY' ? 'chaque mois' : 'une fois'}',
-                          style: const TextStyle(
-                              color: AppColors.textSecondary, fontSize: 12)),
-                      const SizedBox(height: AppSpacing.sm),
-                      LinearProgressIndicator(
-                          value: (c.progress / c.target)
-                              .clamp(0.0, 1.0)
-                              .toDouble(),
-                          color: c.done ? AppColors.success : AppColors.primary,
-                          backgroundColor: AppColors.border),
-                      const SizedBox(height: 2),
-                      Text(
-                          c.done
-                              ? 'Défi réussi'
-                              : c.unit == 'FCFA'
-                                  ? '${formatXof(c.progress)} / ${formatXof(c.target)}'
-                                  : '${c.progress} / ${c.target} ${c.unit}',
-                          style: const TextStyle(fontSize: 12)),
-                    ]),
-              ),
-            ),
-          const PageSectionTitle('Mes badges'),
-          for (final b in d.badges)
-            Opacity(
-              opacity: b.earned ? 1 : 0.55,
-              child: Card(
-                child: ListTile(
-                  leading: Icon(
-                      b.earned ? Icons.military_tech : Icons.lock_outline,
-                      color:
-                          b.earned ? AppColors.gold : AppColors.textSecondary),
-                  title: Text(b.label),
-                  subtitle: Text(b.condition),
-                  trailing: b.points > 0 ? Text('+${b.points} pts') : null,
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+        child: CustomPaint(
+          foregroundPainter: _DashedBorderPainter(),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+                color: _loTint, borderRadius: BorderRadius.circular(20)),
+            child: Column(children: [
+              const Text('Votre code de parrainage',
+                  style: TextStyle(color: _muted, fontSize: 12.5, height: 1.4)),
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 12),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: SelectableText(code,
+                      style: displayFont(const TextStyle(
+                          color: AppColors.primaryDark,
+                          fontSize: 40,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 2.4))),
                 ),
               ),
-            ),
-        ]),
-      ),
-    );
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.white,
+                  foregroundColor: AppColors.primaryDark,
+                  minimumSize: const Size(0, 44),
+                  padding: const EdgeInsets.symmetric(horizontal: 22),
+                  shape: const StadiumBorder(),
+                  textStyle: const TextStyle(
+                      fontSize: 14.5, fontWeight: FontWeight.w600),
+                ),
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: code));
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Code $code copié')));
+                  }
+                },
+                icon: const Icon(Icons.copy_rounded, size: 20),
+                label: const Text('Copier le code'),
+              ),
+            ]),
+          ),
+        ),
+      );
+}
+
+/// 2 px blue dashed rounded border (Flutter has no dashed BoxBorder).
+class _DashedBorderPainter extends CustomPainter {
+  _DashedBorderPainter({this.color = AppColors.primary, this.width = 2});
+  final Color color;
+  final double width;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = RRect.fromRectAndRadius(
+        (Offset.zero & size).deflate(width / 2), const Radius.circular(20));
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width;
+    for (final metric in (Path()..addRRect(rect)).computeMetrics()) {
+      for (var d = 0.0; d < metric.length; d += 9) {
+        canvas.drawPath(metric.extractPath(d, d + 5), paint);
+      }
+    }
   }
+
+  @override
+  bool shouldRepaint(_DashedBorderPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.width != width;
+}
+
+class _MockupSection extends StatelessWidget {
+  const _MockupSection(this.title);
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 28, 16, 12),
+        child: Semantics(
+          header: true,
+          child: Text(title,
+              style: displayFont(const TextStyle(
+                  color: _ink,
+                  fontSize: 22,
+                  height: 1.1,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.2))),
+        ),
+      );
+}
+
+/// Numbered step: blue round number, bold title, grey text.
+class _SeqStep extends StatelessWidget {
+  const _SeqStep(this.n, this.title, this.text);
+  final int n;
+  final String title;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+                color: AppColors.primary, shape: BoxShape.circle),
+            child: Text('$n',
+                style: const TextStyle(
+                    color: AppColors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700)),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title,
+                  style: const TextStyle(
+                      color: _ink,
+                      fontSize: 14.5,
+                      height: 1.45,
+                      fontWeight: FontWeight.w700)),
+              Text(text,
+                  style: const TextStyle(
+                      color: _muted, fontSize: 13.5, height: 1.45)),
+            ]),
+          ),
+        ]),
+      );
 }

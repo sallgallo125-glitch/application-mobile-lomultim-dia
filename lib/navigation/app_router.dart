@@ -49,7 +49,10 @@ final GoRouter appRouter = GoRouter(
         ]),
         StatefulShellBranch(routes: [
           GoRoute(
-              path: '/lo', builder: (context, state) => const LoyaltyScreen())
+              path: '/lo',
+              builder: (context, state) => LoyaltyScreen(
+                  // Opened from another tab (e.g. Compte): show a back arrow.
+                  backTo: state.uri.queryParameters['from']))
         ]),
         StatefulShellBranch(routes: [
           GoRoute(
@@ -127,17 +130,9 @@ final GoRouter appRouter = GoRouter(
         parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const LoyaltyHistoryScreen()),
     GoRoute(
-        path: '/lo/echanger',
-        parentNavigatorKey: rootNavigatorKey,
-        builder: (context, state) => const LoyaltyExchangeScreen()),
-    GoRoute(
         path: '/lo/parrainage',
         parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const LoyaltyReferralScreen()),
-    GoRoute(
-        path: '/lo/defis',
-        parentNavigatorKey: rootNavigatorKey,
-        builder: (context, state) => const LoyaltyChallengesScreen()),
     GoRoute(
         path: '/carte-cadeau',
         parentNavigatorKey: rootNavigatorKey,

@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,12 +11,16 @@ import 'app_header.dart';
 
 /// Number of items in the cart (sum of quantities), 0 while loading.
 final cartCountProvider = Provider<int>((ref) =>
-    ref.watch(cartProvider).value?.items.fold<int>(0, (n, i) => n + i.quantity) ??
+    ref
+        .watch(cartProvider)
+        .value
+        ?.items
+        .fold<int>(0, (n, i) => n + i.quantity) ??
     0);
 
 /// Unread notifications.
-final unreadNotificationsProvider = Provider<int>((ref) =>
-    ref.watch(notificationsProvider).where((n) => !n.read).length);
+final unreadNotificationsProvider = Provider<int>(
+    (ref) => ref.watch(notificationsProvider).where((n) => !n.read).length);
 
 /// Header "Notifications" button with the real unread count.
 HeaderAction notificationsHeaderAction(BuildContext context, WidgetRef ref) =>
@@ -36,7 +41,9 @@ HeaderAction cartHeaderAction(BuildContext context, WidgetRef ref) =>
 /// Adds or removes [productId] from the favourites.
 void toggleFavorite(WidgetRef ref, String productId) {
   final updated = {...ref.read(favoriteIdsProvider)};
-  updated.contains(productId) ? updated.remove(productId) : updated.add(productId);
+  updated.contains(productId)
+      ? updated.remove(productId)
+      : updated.add(productId);
   ref.read(favoriteIdsProvider.notifier).state = updated;
 }
 
@@ -111,27 +118,71 @@ class FavoriteButton extends ConsumerWidget {
   }
 }
 
-/// "Added to cart" confirmation with a shortcut to the cart.
-void showAddedToCart(BuildContext context) {
+/// Compact confirmation shown after adding a product to the cart.
+void showAddedToCart(BuildContext context, String productName) {
   final messenger = ScaffoldMessenger.of(context);
-  // Captured now: the page may be gone when the action is tapped.
   final router = GoRouter.of(context);
   messenger.clearSnackBars();
+  const productNameStyle =
+      TextStyle(color: AppColors.white, fontWeight: FontWeight.w800);
+  const addedLabel = 'ajouté au panier';
+  const addedLabelStyle = TextStyle(color: AppColors.white, fontSize: 13);
+  final maxToastWidth = math.min(MediaQuery.sizeOf(context).width - 32, 360.0);
+  final maxTextWidth = math.max(0.0, maxToastWidth - 60);
+  double textWidth(String text, TextStyle style) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+      ellipsis: '…',
+    )..layout(maxWidth: maxTextWidth);
+    return painter.width;
+  }
+
+  final contentWidth = math.max(
+    textWidth(productName, productNameStyle),
+    textWidth(addedLabel, addedLabelStyle),
+  );
   messenger.showSnackBar(SnackBar(
-    content: const Text('Produit ajouté au panier'),
+    width: contentWidth + 60,
+    content: InkWell(
+      borderRadius: BorderRadius.circular(AppRadii.md),
+      onTap: () {
+        messenger.clearSnackBars();
+        router.go('/panier');
+      },
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.check_rounded, color: AppColors.white, size: 20),
+          const SizedBox(width: AppSpacing.sm),
+          SizedBox(
+            width: contentWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  productName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: productNameStyle,
+                ),
+                const Text(addedLabel, style: addedLabelStyle),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
     duration: const Duration(milliseconds: 2500),
-    // Since Flutter 3.32 a snack bar with an action stays until dismissed;
-    // this one must close by itself.
     persist: false,
-    backgroundColor: AppColors.success,
+    backgroundColor: const Color(0xFF17233E),
     behavior: SnackBarBehavior.floating,
-    action: SnackBarAction(
-        label: 'Voir le panier',
-        textColor: AppColors.white,
-        onPressed: () {
-          messenger.clearSnackBars();
-          router.go('/panier');
-        }),
+    elevation: 6,
+    shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadii.md)),
   ));
 }
 
@@ -140,9 +191,11 @@ class QuickAddButton extends ConsumerStatefulWidget {
   const QuickAddButton(
       {super.key,
       required this.productId,
+      required this.productName,
       required this.inStock,
       this.fullWidth = false});
   final String productId;
+  final String productName;
   final bool inStock;
 
   /// Full-width "+ Ajouter" button (product cards) instead of an icon.
@@ -158,7 +211,7 @@ class _QuickAddButtonState extends ConsumerState<QuickAddButton> {
     setState(() => _busy = true);
     try {
       await ref.read(cartActionsProvider).add(widget.productId);
-      if (mounted) showAddedToCart(context);
+      if (mounted) showAddedToCart(context, widget.productName);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -192,8 +245,8 @@ class _QuickAddButtonState extends ConsumerState<QuickAddButton> {
                 states.contains(WidgetState.pressed)
                     ? AppColors.primaryDark
                     : AppColors.white),
-            foregroundColor: WidgetStateProperty.resolveWith((states) =>
-                states.contains(WidgetState.disabled)
+            foregroundColor: WidgetStateProperty.resolveWith(
+                (states) => states.contains(WidgetState.disabled)
                     ? AppColors.textSecondary
                     : states.contains(WidgetState.pressed)
                         ? AppColors.white

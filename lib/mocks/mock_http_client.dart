@@ -4,10 +4,20 @@ import 'package:http/http.dart' as http;
 
 import '../utils/delivery.dart';
 import '../utils/loyalty.dart';
+import '../features/persistence.dart';
 import 'data/home_mock_data.dart';
 import 'data/laptop_options.dart';
 import 'mock_member_backend.dart';
 import 'data/products_mock_data.dart';
+
+Map<String, dynamic> _orderItem(String productId) {
+  final product = mockProducts.firstWhere((item) => item['id'] == productId);
+  return {
+    'name': product['name'],
+    'imageUrl': product['imageUrl'],
+    'categoryId': product['categoryId'],
+  };
+}
 
 /// Mirrors ../mobile-app/src/mocks/mockFetch.ts — a deterministic mock
 /// transport. In the RN app this is swapped in by monkey-patching
@@ -15,31 +25,47 @@ import 'data/products_mock_data.dart';
 /// [MockHttpClient] instance to [ApiClient] instead of a real http.Client
 /// (see lib/features/home/home_providers.dart).
 class MockHttpClient extends http.BaseClient {
+  MockHttpClient({this.persistence});
+
   static const _simulatedLatency = Duration(milliseconds: 350);
+
+  final LocalPersistence? persistence;
 
   /// LO+, gift cards, tracking and content routes.
   final MockMemberBackend member = MockMemberBackend();
   final List<Map<String, dynamic>> _cartItems = [];
-  final List<Map<String, dynamic>> _orders = [
-    {
-      'id': 'o-001',
-      'number': 'LO-2026-00142',
-      'createdAt': '24 septembre 2026',
-      'status': 'En préparation',
-      'totalXof': 482000
-    },
-    {
-      'id': 'o-002',
-      'number': 'LO-2026-00118',
-      'createdAt': '12 septembre 2026',
-      'status': 'Livrée',
-      'totalXof': 145000
-    },
-  ];
+  List<Map<String, dynamic>> _orders = [];
+  Future<void>? _initialization;
+
+  List<Map<String, dynamic>> _demoOrders() => [
+        {
+          'id': 'o-001',
+          'number': 'LO-2026-00142',
+          'createdAt': '24 septembre 2026',
+          'status': 'En préparation',
+          'totalXof': 482000,
+          'deliveryInfo':
+              'Livraison prévue entre le mercredi 14 octobre et le jeudi 15 octobre',
+          'items': [
+            _orderItem('p-001'),
+            _orderItem('p-004'),
+          ],
+        },
+        {
+          'id': 'o-002',
+          'number': 'LO-2026-00118',
+          'createdAt': '12 septembre 2026',
+          'status': 'Livrée',
+          'totalXof': 145000,
+          'deliveryInfo': 'Livré le 24-09',
+          'items': [_orderItem('p-003')],
+        },
+      ];
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     await Future<void>.delayed(_simulatedLatency);
+    await _ensureInitialized();
 
     final path = request.url.path;
 
@@ -51,6 +77,7 @@ class MockHttpClient extends http.BaseClient {
             ? const {}
             : jsonDecode(bodyText) as Map<String, dynamic>);
     if (memberResult != null) {
+      if (memberResult.status < 400) await _saveMemberState();
       return _json(request, memberResult.status, memberResult.body);
     }
 
@@ -207,6 +234,17 @@ class MockHttpClient extends http.BaseClient {
         'giftCardAppliedXof': giftApplied,
         'amountDueXof': totals.totalXof - pointsDiscount - giftApplied,
         'deliveryMethodCode': method.code,
+        'deliveryInfo': method == DeliveryMethod.pickup
+            ? 'Retrait en showroom · ${method.hint}'
+            : 'Livraison prévue · ${method.hint}',
+        'items': [
+          for (final item in _cartItems)
+            {
+              'name': item['name'],
+              'imageUrl': item['imageUrl'],
+              'categoryId': item['categoryId'],
+            }
+        ],
         'zoneId': zoneId,
         'paymentMethod': payment.code,
         'promoDiscountXof': totals.promoDiscountXof,
@@ -217,8 +255,13 @@ class MockHttpClient extends http.BaseClient {
           'address': (body['address'] as String).trim(),
       };
       // "Mes commandes" lists the member's orders only.
-      if (!guest) _orders.insert(0, order);
+      if (!guest) {
+        _orders.insert(0, order);
+        await _saveOrders();
+      }
       _cartItems.clear();
+      await _saveCart();
+      await _saveMemberState();
       return _json(request, 201, {'data': order});
     }
     if (request.method == 'POST' && path == '/api/v1/cart/items') {
@@ -277,11 +320,15 @@ class MockHttpClient extends http.BaseClient {
           'quantity': quantity,
           'unitPriceXof': unitPrice,
           'imageUrl': product['imageUrl'],
-          'categoryId': product['categoryId']
+          'categoryId': product['categoryId'],
+          if (body['variantId'] != null) 'variantId': body['variantId'],
+          'addonIds': addonIds,
+          'options': requested,
         });
       else
         existing.first['quantity'] =
             (existing.first['quantity'] as int) + quantity;
+      await _saveCart();
       return _json(request, 200, {'data': _cart()});
     }
     if (path.startsWith('/api/v1/cart/items/')) {
@@ -300,6 +347,7 @@ class MockHttpClient extends http.BaseClient {
         else
           item.first['quantity'] = quantity;
       }
+      await _saveCart();
       return _json(request, 200, {'data': _cart()});
     }
 
@@ -358,6 +406,69 @@ class MockHttpClient extends http.BaseClient {
       'message': 'No mock route for ${request.method} $path',
     });
   }
+
+  Future<void> _ensureInitialized() {
+    if (_initialization != null) return _initialization!;
+    if (persistence == null) {
+      _orders = _demoOrders();
+      return _initialization = Future<void>.value();
+    }
+    return _initialization = _loadPersistedData();
+  }
+
+  Future<void> _loadPersistedData() async {
+    final savedMember = persistence?.read('mock_member_state');
+    if (savedMember != null) {
+      final decoded = jsonDecode(savedMember);
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException(
+            'Stored mock member data must be an object.');
+      }
+      member.restoreState(decoded);
+    }
+
+    final savedOrders = persistence?.read('mock_member_orders');
+    if (savedOrders == null) {
+      _orders = _demoOrders();
+      await _saveOrders();
+    } else {
+      _orders = _decodeRows(savedOrders, 'mock_member_orders');
+    }
+
+    final savedCart = persistence?.read('mock_cart_items');
+    if (savedCart != null) {
+      _cartItems.addAll(_decodeRows(savedCart, 'mock_cart_items'));
+    }
+  }
+
+  List<Map<String, dynamic>> _decodeRows(String json, String key) {
+    final decoded = jsonDecode(json);
+    if (decoded is! List<dynamic>) {
+      throw FormatException('Stored "$key" must be a JSON list.');
+    }
+    return [
+      for (final row in decoded)
+        if (row is Map<String, dynamic>)
+          row
+        else
+          throw FormatException('Stored "$key" contains an invalid row.')
+    ];
+  }
+
+  Future<void> _saveOrders() =>
+      persistence?.write('mock_member_orders', jsonEncode(_orders)) ??
+      Future<void>.value();
+
+  Future<void> _saveCart() =>
+      persistence?.write('mock_cart_items', jsonEncode(_cartItems)) ??
+      Future<void>.value();
+
+  Future<void> _saveMemberState() =>
+      persistence?.write(
+        'mock_member_state',
+        jsonEncode(member.exportState()),
+      ) ??
+      Future<void>.value();
 
   Map<String, dynamic> _cart() {
     final subtotal = _cartItems.fold<int>(

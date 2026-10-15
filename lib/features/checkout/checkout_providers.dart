@@ -37,6 +37,12 @@ class CheckoutActions {
         name: name,
         phone: phone,
         address: address);
+    final user = ref.read(sessionUserProvider);
+    if (user != null && address != null && address.isNotEmpty) {
+      // Pre-fills the address on this account's next checkout.
+      ref.read(lastDeliveryProvider(user.phone).notifier).state =
+          (address: address, zoneId: zoneId);
+    }
     if (guest) {
       // Remembered on the device to pre-fill the next guest checkout.
       ref.read(guestContactProvider.notifier).state =

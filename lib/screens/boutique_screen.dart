@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,6 +31,10 @@ final shopSortRequestProvider = StateProvider<CatalogSort?>((ref) => null);
 /// True when the shop was opened from a home "Nos rayons" circle: the shop
 /// then shows a back button to the home page.
 final shopOpenedFromHomeProvider = StateProvider<bool>((ref) => false);
+
+/// True while the shop's products scroll down: the bottom bar slides away
+/// and comes back as soon as the scrolling stops.
+final shopNavBarHiddenProvider = StateProvider<bool>((ref) => false);
 
 class BoutiqueScreen extends ConsumerStatefulWidget {
   const BoutiqueScreen({super.key});
@@ -264,7 +270,8 @@ class _Content extends StatelessWidget {
                           2 * AppSpacing.lg -
                           (columns - 1) * AppSpacing.sm) /
                       columns;
-                  return CustomScrollView(controller: controller, slivers: [
+                  return _HideNavBarOnScroll(
+                      child: CustomScrollView(controller: controller, slivers: [
                     // Categories scroll away; the filter bar sticks
                     // under the search.
                     SliverToBoxAdapter(child: _categoryRow()),
@@ -292,7 +299,7 @@ class _Content extends StatelessWidget {
                             childCount: products.length),
                       ),
                     ),
-                  ]);
+                  ]));
                 }));
   }
 }
@@ -370,6 +377,64 @@ class _Empty extends StatelessWidget {
 /// "Back to top" button over a scrolling list: it appears only while the
 /// customer scrolls UP (far enough from the top) and hides when scrolling
 /// down or back at the top.
+/// Hides the bottom bar while the user scrolls down; shows it again when
+/// the scrolling stops or goes up.
+class _HideNavBarOnScroll extends ConsumerStatefulWidget {
+  const _HideNavBarOnScroll({required this.child});
+  final Widget child;
+  @override
+  ConsumerState<_HideNavBarOnScroll> createState() =>
+      _HideNavBarOnScrollState();
+}
+
+class _HideNavBarOnScrollState extends ConsumerState<_HideNavBarOnScroll> {
+  Timer? _showAgain;
+  late final StateController<bool> _hidden;
+
+  @override
+  void initState() {
+    super.initState();
+    _hidden = ref.read(shopNavBarHiddenProvider.notifier);
+  }
+
+  void _set(bool hidden) {
+    if (_hidden.state != hidden) _hidden.state = hidden;
+  }
+
+  bool _onNotification(ScrollNotification n) {
+    if (n.depth != 0 || n.metrics.axis != Axis.vertical) return false;
+    if (n is UserScrollNotification) {
+      if (n.direction == ScrollDirection.reverse) {
+        _showAgain?.cancel();
+        _set(true);
+      } else if (n.direction == ScrollDirection.forward) {
+        _set(false);
+      }
+    } else if (n is ScrollEndNotification) {
+      _showAgain?.cancel();
+      _showAgain = Timer(const Duration(milliseconds: 250), () => _set(false));
+    }
+    if (n.metrics.pixels <= 0) _set(false);
+    return false;
+  }
+
+  @override
+  void dispose() {
+    _showAgain?.cancel();
+    // Never leave the bar hidden behind us.
+    final hidden = _hidden;
+    Future.microtask(() {
+      if (hidden.mounted) hidden.state = false;
+    });
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      NotificationListener<ScrollNotification>(
+          onNotification: _onNotification, child: widget.child);
+}
+
 class _BackToTop extends StatefulWidget {
   const _BackToTop({required this.builder});
   final Widget Function(ScrollController controller) builder;

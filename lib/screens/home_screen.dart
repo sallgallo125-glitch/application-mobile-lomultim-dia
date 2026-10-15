@@ -235,8 +235,6 @@ class _HomeContentView extends ConsumerWidget {
           ),
           ProductRail(products: content.recommendedProducts),
         ],
-        const HomeRecentlyViewed(),
-        const SizedBox(height: AppSpacing.lg),
         HomeBrands(fallback: [
           ...content.flashProducts,
           ...content.bestSellers,

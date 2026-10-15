@@ -23,7 +23,7 @@ import '../widgets/commerce/product_rail.dart';
 import '../features/home/home_providers.dart';
 
 /// Light grey page behind the white cards (Jumia / Samsung style).
-const _pageBg = Color(0xFFF5F6FA);
+const _pageBg = AppColors.white;
 
 class CartScreen extends ConsumerStatefulWidget {
   const CartScreen({super.key});
@@ -614,6 +614,8 @@ class _Card extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: AppColors.white,
+          // White page: the outline keeps the blocks apart.
+          border: Border.all(color: AppColors.border),
           borderRadius: BorderRadius.circular(14),
         ),
         child: child,

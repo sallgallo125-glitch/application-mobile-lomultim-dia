@@ -66,10 +66,26 @@ class LoMultimediaApp extends StatelessWidget {
           error: AppColors.danger,
           onError: AppColors.white,
           surface: AppColors.white,
+          // Material 3 tints these bluish-grey from the seed: pure white
+          // everywhere (dialogs, menus, sheets, navigation bar).
+          surfaceContainerLowest: AppColors.white,
+          surfaceContainerLow: AppColors.white,
+          surfaceContainer: AppColors.white,
+          surfaceContainerHigh: AppColors.white,
+          surfaceContainerHighest: AppColors.white,
+          surfaceTint: Colors.transparent,
           onSurface: AppColors.text,
           onSurfaceVariant: AppColors.textSecondary,
           outline: AppColors.border,
           outlineVariant: AppColors.border,
+        ),
+        dialogTheme: const DialogThemeData(
+          backgroundColor: AppColors.white,
+          surfaceTintColor: Colors.transparent,
+        ),
+        bottomSheetTheme: const BottomSheetThemeData(
+          backgroundColor: AppColors.white,
+          surfaceTintColor: Colors.transparent,
         ),
         cardTheme: const CardThemeData(
           color: AppColors.white,

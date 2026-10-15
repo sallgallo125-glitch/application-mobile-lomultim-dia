@@ -298,14 +298,14 @@ class _BannerFrame extends StatelessWidget {
   final bool hasImage;
   final Widget child;
 
-  /// Mobile versions of the site banners (assets/banners): 1186 × 450, made
+  /// Mobile versions of the site banners (assets/banners): 1186 × 578, made
   /// from the 1920 × 600 site visuals by removing empty strips so the card
   /// can be taller without cutting their text.
-  static const imageAspectRatio = 1186 / 450;
+  static const imageAspectRatio = 1186 / 578;
 
   /// Extra height on top of the image ratio (the picture is zoomed to fill
   /// it, so its sides are cropped).
-  static const extraHeight = 20.0;
+  static const extraHeight = 0.0;
 
   @override
   Widget build(BuildContext context) => hasImage

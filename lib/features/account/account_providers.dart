@@ -10,6 +10,8 @@ final accountSummaryProvider = FutureProvider<AccountSummary>(
     (ref) => ref.watch(accountRepositoryProvider).getSummary());
 final ordersProvider = FutureProvider<List<OrderSummary>>(
     (ref) => ref.watch(accountRepositoryProvider).listOrders());
+final orderDetailProvider = FutureProvider.family<OrderDetail, String>(
+    (ref, number) => ref.watch(accountRepositoryProvider).getOrder(number));
 
 class SessionUser {
   const SessionUser({required this.name, required this.phone});

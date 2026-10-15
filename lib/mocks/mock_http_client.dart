@@ -13,9 +13,12 @@ import 'data/products_mock_data.dart';
 Map<String, dynamic> _orderItem(String productId) {
   final product = mockProducts.firstWhere((item) => item['id'] == productId);
   return {
+    'productId': productId,
     'name': product['name'],
     'imageUrl': product['imageUrl'],
     'categoryId': product['categoryId'],
+    'quantity': 1,
+    'unitPriceXof': product['priceXof'],
   };
 }
 
@@ -44,8 +47,26 @@ class MockHttpClient extends http.BaseClient {
           'createdAt': '24 septembre 2026',
           'status': 'En préparation',
           'totalXof': 482000,
+          'pointsToEarn': 48,
           'deliveryInfo':
               'Livraison prévue entre le mercredi 14 octobre et le jeudi 15 octobre',
+          'deliveryMethodCode': 'STANDARD',
+          'paymentMethod': 'WAVE',
+          'name': 'Aissatou Diop',
+          'address': 'Sacré-Cœur 3, villa 112, Dakar',
+          'events': [
+            {'status': 'Reçue', 'at': '24 sept., 10:42'},
+            {
+              'status': 'Confirmée',
+              'at': '24 sept., 11:05',
+              'comment': 'Paiement Wave reçu'
+            },
+            {
+              'status': 'En préparation',
+              'at': '25 sept., 09:15',
+              'comment': 'Showroom Sandaga'
+            },
+          ],
           'items': [
             _orderItem('p-001'),
             _orderItem('p-004'),
@@ -58,6 +79,23 @@ class MockHttpClient extends http.BaseClient {
           'status': 'Livrée',
           'totalXof': 145000,
           'deliveryInfo': 'Livré le 24-09',
+          'deliveryMethodCode': 'PICKUP',
+          'paymentMethod': 'CASH_ON_DELIVERY',
+          'name': 'Aissatou Diop',
+          'events': [
+            {'status': 'Reçue', 'at': '12 sept., 16:20'},
+            {'status': 'En préparation', 'at': '13 sept., 09:30'},
+            {
+              'status': 'Prête à retirer',
+              'at': '13 sept., 14:10',
+              'comment': 'Showroom Médina'
+            },
+            {
+              'status': 'Livrée',
+              'at': '14 sept., 11:45',
+              'comment': 'Retirée et payée en showroom'
+            },
+          ],
           'items': [_orderItem('p-003')],
         },
       ];
@@ -156,6 +194,31 @@ class MockHttpClient extends http.BaseClient {
       });
     if (request.method == 'GET' && path == '/api/v1/orders')
       return _json(request, 200, {'data': _orders});
+    final orderRoute =
+        RegExp(r'^/api/v1/orders/([^/]+)(/cancel)?$').firstMatch(path);
+    if (orderRoute != null) {
+      final number = Uri.decodeComponent(orderRoute.group(1)!);
+      final order = _orders.where((o) => o['number'] == number).firstOrNull;
+      if (order == null)
+        return _json(request, 404,
+            {'code': 'ORDER_NOT_FOUND', 'message': 'Commande introuvable.'});
+      if (request.method == 'GET' && orderRoute.group(2) == null)
+        return _json(request, 200, {'data': _orderDetail(order)});
+      if (request.method == 'POST' && orderRoute.group(2) != null) {
+        if (!_cancellable(order))
+          return _json(request, 409, {
+            'code': 'ORDER_NOT_CANCELLABLE',
+            'message': 'Cette commande ne peut plus être annulée.'
+          });
+        order['status'] = 'Annulée';
+        order['events'] = [
+          ..._events(order),
+          {'status': 'Annulée', 'at': _nowLabel(), 'comment': 'Par vous'},
+        ];
+        await _saveOrders();
+        return _json(request, 200, {'data': _orderDetail(order)});
+      }
+    }
 
     if (request.method == 'GET' && path == '/api/v1/cart')
       return _json(request, 200, {'data': _cart()});
@@ -240,10 +303,16 @@ class MockHttpClient extends http.BaseClient {
         'items': [
           for (final item in _cartItems)
             {
+              'productId': item['productId'],
               'name': item['name'],
               'imageUrl': item['imageUrl'],
               'categoryId': item['categoryId'],
+              'quantity': item['quantity'],
+              'unitPriceXof': item['unitPriceXof'],
             }
+        ],
+        'events': [
+          {'status': 'Confirmée', 'at': _nowLabel()},
         ],
         'zoneId': zoneId,
         'paymentMethod': payment.code,
@@ -469,6 +538,84 @@ class MockHttpClient extends http.BaseClient {
         jsonEncode(member.exportState()),
       ) ??
       Future<void>.value();
+
+  /// Mirrors the ERP's « annulable »: until the order leaves for delivery.
+  bool _cancellable(Map<String, dynamic> order) {
+    final status = (order['status'] as String).toLowerCase();
+    return !['annul', 'route', 'expédi', 'prête', 'livr'].any(status.contains);
+  }
+
+  /// Status history; orders saved before it existed get a single entry.
+  List<Map<String, dynamic>> _events(Map<String, dynamic> order) =>
+      (order['events'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ??
+      [
+        {'status': order['status'], 'at': order['createdAt']}
+      ];
+
+  static const _months = [
+    'janv.',
+    'févr.',
+    'mars',
+    'avr.',
+    'mai',
+    'juin',
+    'juil.',
+    'août',
+    'sept.',
+    'oct.',
+    'nov.',
+    'déc.'
+  ];
+
+  static String _nowLabel() {
+    final now = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${now.day} ${_months[now.month - 1]}, '
+        '${two(now.hour)}:${two(now.minute)}';
+  }
+
+  Map<String, dynamic> _orderDetail(Map<String, dynamic> order) {
+    final items = [
+      for (final item in (order['items'] as List<dynamic>? ?? const [])
+          .cast<Map<String, dynamic>>())
+        {
+          ...item,
+          // Orders saved before lines kept their product: found by name
+          // (the cart name starts with the product name).
+          'productId': item['productId'] ??
+              mockProducts
+                  .where((p) =>
+                      (item['name'] as String).startsWith(p['name'] as String))
+                  .firstOrNull?['id'],
+        }
+    ];
+    final fee = (order['deliveryFeeXof'] as num?)?.toInt() ?? 0;
+    final linesTotal = items.fold<int>(
+        0,
+        (sum, i) =>
+            sum +
+            ((i['unitPriceXof'] as num?)?.toInt() ?? 0) *
+                ((i['quantity'] as num?)?.toInt() ?? 1));
+    final method =
+        DeliveryMethod.fromCode(order['deliveryMethodCode'] as String?);
+    final payment = PaymentMethod.fromCode(order['paymentMethod'] as String?) ??
+        PaymentMethod.cashOnDelivery;
+    final status = (order['status'] as String).toLowerCase();
+    return {
+      ...order,
+      'items': items,
+      'events': _events(order),
+      'subtotalXof':
+          linesTotal > 0 ? linesTotal : (order['totalXof'] as int) - fee,
+      'deliveryFeeXof': fee,
+      'deliveryLabel': method.label,
+      if (method == DeliveryMethod.pickup && order['address'] == null)
+        'address': 'Showroom Sandaga, avenue Lamine Guèye',
+      'paymentLabel': payment.label,
+      'paid': payment.isOnline || status.contains('livr'),
+      'cancellable': _cancellable(order),
+    };
+  }
 
   Map<String, dynamic> _cart() {
     final subtotal = _cartItems.fold<int>(

@@ -18,6 +18,7 @@ import '../contracts/account.dart';
 import '../screens/home_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/loyalty_screen.dart';
+import '../screens/order_detail_screen.dart';
 import '../screens/orders_screen.dart';
 import '../screens/product_screen.dart';
 import '../screens/gift_card_screens.dart';
@@ -84,6 +85,11 @@ final GoRouter appRouter = GoRouter(
         path: '/commandes',
         parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const OrdersScreen()),
+    GoRoute(
+        path: '/commandes/:number',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) =>
+            OrderDetailScreen(number: state.pathParameters['number']!)),
     GoRoute(
         path: '/connexion',
         parentNavigatorKey: rootNavigatorKey,

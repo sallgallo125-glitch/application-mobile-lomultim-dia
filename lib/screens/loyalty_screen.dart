@@ -16,9 +16,6 @@ import '../widgets/header_actions.dart';
 import '../widgets/loading_state.dart';
 import '../widgets/nav_clearance.dart';
 
-/// Pale blue-grey tiles and cards on the white page.
-const _mist = Color(0xFFF1F3F9);
-
 /// Secondary text in the white page header.
 const _onBand = AppColors.textSecondary;
 
@@ -107,17 +104,9 @@ class _Band extends StatelessWidget {
                       child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text.rich(
-                              const TextSpan(children: [
-                                TextSpan(text: 'LO'),
-                                TextSpan(
-                                    text: '+',
-                                    style:
-                                        TextStyle(color: AppColors.primary)),
-                              ]),
-                              style: displayFont(AppText.pageTitle.copyWith(
-                                  letterSpacing: -0.2)),
-                            ),
+                            Text('LO+',
+                                style: displayFont(AppText.pageTitle
+                                    .copyWith(letterSpacing: -0.2))),
                             Text(subtitle,
                                 style: const TextStyle(
                                     color: _onBand,
@@ -168,13 +157,15 @@ class _GuestContent extends StatelessWidget {
             overlapHeight: 80,
             extra: Padding(
               padding: const EdgeInsets.only(top: 18, bottom: AppSpacing.lg),
-              child: Text('Vos achats vous font monter',
+              child: Text(
+                  '1 point tous les ${formatXof(loyaltyTrancheXof)} '
+                  'd’achat, en ligne ou en showroom',
                   style: displayFont(const TextStyle(
                       color: AppColors.primaryDark,
-                      fontSize: 30,
-                      height: 1.05,
+                      fontSize: 22,
+                      height: 1.2,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: -0.6))),
+                      letterSpacing: -0.3))),
             ),
             overlap: const LoyaltyCardFace(
               cardNumber: '2026 •••• ••••',
@@ -191,9 +182,8 @@ class _GuestContent extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                    'Chaque achat chez LO Multimédia, en ligne ou en showroom, '
-                    'vous rapporte des points et vous rapproche du palier '
-                    'suivant.',
+                    'Vos points se dépensent en caisse ou en ligne, et plus '
+                    'vous achetez, plus votre palier vous en rapporte.',
                     style: AppText.bodyMuted),
                 const _SectionTitle('Les paliers'),
                 const _TierLadder(currentCode: null, spendXof: 0),
@@ -256,66 +246,35 @@ class _LoyaltyContent extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Semantics(
-                  label: '$points points, valeur en caisse $value',
-                  excludeSemantics: true,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Expanded(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.bottomLeft,
-                          child: Text.rich(
-                            TextSpan(children: [
-                              TextSpan(text: '$points'),
-                              const TextSpan(
-                                  text: ' points',
-                                  style: TextStyle(
-                                      fontSize: 18,
-                                      letterSpacing: 0,
-                                      fontWeight: FontWeight.w700)),
-                            ]),
-                            style: displayFont(const TextStyle(
-                                color: AppColors.text,
-                                fontSize: 48,
-                                height: 1,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -1.2,
-                                fontFeatures: [FontFeature.tabularFigures()])),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                      Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            const Text('Valeur en caisse',
-                                style: TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 13.5)),
-                            Text(value,
-                                style: const TextStyle(
-                                    color: AppColors.text,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    fontFeatures: [
-                                      FontFeature.tabularFigures()
-                                    ])),
-                          ]),
-                    ],
-                  ),
+                // The card already shows the balance: one plain sentence
+                // says what it is worth.
+                Text.rich(
+                  TextSpan(children: [
+                    TextSpan(
+                        text: '$points points',
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                    TextSpan(
+                        text:
+                            ', soit $value à utiliser en caisse ou en ligne.'),
+                  ]),
+                  style: const TextStyle(
+                      color: AppColors.text, fontSize: 15, height: 1.45),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: AppSpacing.md),
                 Row(children: [
-                  _Tile(Icons.qr_code_2_rounded, 'Ma carte',
-                      () => context.push('/lo/carte')),
-                  const SizedBox(width: AppSpacing.md),
-                  _Tile(Icons.history_rounded, 'Historique',
-                      () => context.push('/lo/historique')),
-                  const SizedBox(width: AppSpacing.md),
-                  _Tile(Icons.group_add_outlined, 'Parrainer',
-                      () => context.push('/lo/parrainage')),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                        onPressed: () => context.push('/lo/historique'),
+                        icon: const Icon(Icons.history_rounded, size: 18),
+                        label: const Text('Historique')),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                        onPressed: () => context.push('/lo/parrainage'),
+                        icon: const Icon(Icons.group_add_outlined, size: 18),
+                        label: const Text('Parrainer')),
+                  ),
                 ]),
                 const _SectionTitle('Vos paliers',
                     sub: 'Calculés sur vos achats des 12 derniers mois'),
@@ -323,23 +282,12 @@ class _LoyaltyContent extends ConsumerWidget {
                     currentCode: loyalty.tierCode,
                     spendXof: loyalty.spend12MonthsXof),
                 const _SectionTitle('Comment ça marche'),
-                _HowTo(
-                    '1 pt',
-                    'tous les ${formatXof(loyaltyTrancheXof)} d’achat, '
-                        'multiplié selon votre palier.'),
-                _HowTo(
-                    formatXof(loyaltyPointValueXof),
-                    'la valeur d’un point, utilisable dès '
-                    '$loyaltyMinRedeemPoints points en ligne ou en caisse.'),
-                const _HowTo('+50 pts',
-                    'pour chaque proche parrainé, et +20 points pour lui.'),
-                const SizedBox(height: AppSpacing.lg),
-                SizedBox(
-                  height: 52,
-                  child: ElevatedButton(
-                      onPressed: () => context.go('/boutique'),
-                      child: const Text('Gagner des points en boutique')),
-                ),
+                _HowTo('1 point tous les ${formatXof(loyaltyTrancheXof)} '
+                    'd’achat, multiplié selon votre palier.'),
+                _HowTo('1 point vaut ${formatXof(loyaltyPointValueXof)}, '
+                    'utilisable dès $loyaltyMinRedeemPoints points.'),
+                const _HowTo('50 points pour chaque proche parrainé, '
+                    'et 20 points pour lui.'),
               ],
             ),
           ),
@@ -370,74 +318,24 @@ class _SectionTitle extends StatelessWidget {
       );
 }
 
-/// Minimal shortcut under the balance, without a colored tile background.
-class _Tile extends StatelessWidget {
-  const _Tile(this.icon, this.label, this.onTap);
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Expanded(
-        child: Material(
-          color: AppColors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadii.lg),
-            side: const BorderSide(color: AppColors.border),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onTap,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 68),
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(icon, color: AppColors.text, size: 22),
-                      const SizedBox(height: 7),
-                      Text(label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: AppColors.text,
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w500)),
-                    ]),
-              ),
-            ),
-          ),
-        ),
-      );
-}
-
-/// "Comment ça marche" card: a big blue figure and its explanation.
+/// One "Comment ça marche" rule, as a plain bulleted line.
 class _HowTo extends StatelessWidget {
-  const _HowTo(this.figure, this.text);
-  final String figure;
+  const _HowTo(this.text);
   final String text;
 
   @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-            color: _mist.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(AppRadii.lg)),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 78),
-            child: Text(figure,
-                style: displayFont(const TextStyle(
-                    color: AppColors.primary,
-                    fontSize: 22,
-                    height: 1,
-                    fontWeight: FontWeight.w800,
-                    fontFeatures: [FontFeature.tabularFigures()]))),
+          const Padding(
+            padding: EdgeInsets.only(top: 8, right: AppSpacing.sm),
+            child: SizedBox.square(
+                dimension: 5,
+                child: DecoratedBox(
+                    decoration: BoxDecoration(
+                        color: AppColors.textSecondary,
+                        shape: BoxShape.circle))),
           ),
-          const SizedBox(width: 14),
           Expanded(
               child: Text(text,
                   style: const TextStyle(

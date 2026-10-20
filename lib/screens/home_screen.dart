@@ -10,8 +10,7 @@ import '../theme/tokens.dart';
 import '../utils/currency.dart';
 import '../widgets/app_header.dart';
 import '../widgets/card_faces.dart' show GiftCardFace;
-import 'boutique_screen.dart'
-    show CatalogSort, shopSortRequestProvider;
+import 'boutique_screen.dart' show CatalogSort, shopSortRequestProvider;
 import '../features/catalog/shop_filters.dart';
 import '../widgets/commerce/category_card.dart';
 import '../widgets/commerce/product_rail.dart';
@@ -29,6 +28,8 @@ import '../widgets/nav_clearance.dart';
 
 typedef _ServiceLink = ({
   IconData icon,
+  String label,
+  String hint,
   String title,
   String subtitle,
   String? route
@@ -37,24 +38,32 @@ typedef _ServiceLink = ({
 const List<_ServiceLink> _services = [
   (
     icon: Icons.build_outlined,
+    label: 'Atelier SAV',
+    hint: "Diagnostic 24 h",
     title: 'Atelier SAV agréé',
     subtitle: 'Diagnostic gratuit 24 h',
     route: '/sav'
   ),
   (
     icon: Icons.diamond_outlined,
+    label: 'Fidélité Lo+',
+    hint: "Jusqu'à –12 %",
     title: 'Fidélité Lo+',
     subtitle: "Jusqu'à –12 % de remise",
     route: '/lo'
   ),
   (
     icon: Icons.location_on_outlined,
+    label: 'Showrooms',
+    hint: "Sandaga, Médina",
     title: 'Nos 2 showrooms',
     subtitle: 'Sandaga & Médina, Dakar',
     route: '/showrooms'
   ),
   (
     icon: Icons.chat_bubble_outline,
+    label: 'Arame IA',
+    hint: "Réponse 24/7",
     title: 'Arame, assistante IA',
     subtitle: 'Réponse immédiate 24/7',
     route: '/chat',
@@ -252,19 +261,38 @@ class _HomeContentView extends ConsumerWidget {
         const SizedBox(height: AppSpacing.sm),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          child: _ResponsiveGrid(
-            columnsFor: (width) => width >= 600 ? 4 : (width < 300 ? 1 : 2),
-            children: [
-              for (final service in _services)
-                _ServiceCard(
-                  icon: service.icon,
-                  title: service.title,
-                  subtitle: service.subtitle,
-                  onTap: service.route == null
-                      ? null
-                      : () => context.go(service.route!),
-                ),
-            ],
+          // Four shortcuts on one row, icon above a short label (like
+          // banking / Wave apps), in one outlined block lifted by a soft
+          // shadow so it reads as tappable.
+          child: Material(
+            color: AppColors.white,
+            elevation: 3,
+            shadowColor: const Color(0x400F173C),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadii.md),
+              side: const BorderSide(color: AppColors.border),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: IntrinsicHeight(
+              child: Row(children: [
+                for (var i = 0; i < _services.length; i++) ...[
+                  if (i > 0)
+                    const VerticalDivider(
+                        width: 1,
+                        indent: AppSpacing.md,
+                        endIndent: AppSpacing.md,
+                        color: AppColors.border),
+                  Expanded(
+                    child: _ServiceShortcut(
+                      service: _services[i],
+                      onTap: _services[i].route == null
+                          ? null
+                          : () => context.go(_services[i].route!),
+                    ),
+                  ),
+                ],
+              ]),
+            ),
           ),
         ),
         const SizedBox(height: AppSpacing.md),
@@ -394,8 +422,7 @@ class _AmountChoice extends StatelessWidget {
                   fit: BoxFit.scaleDown,
                   child: Text(label,
                       style: TextStyle(
-                          color:
-                              selected ? AppColors.primary : AppColors.text,
+                          color: selected ? AppColors.primary : AppColors.text,
                           fontSize: 14,
                           fontWeight: FontWeight.w700)),
                 ),
@@ -406,86 +433,46 @@ class _AmountChoice extends StatelessWidget {
       );
 }
 
-class _ServiceCard extends StatelessWidget {
-  const _ServiceCard(
-      {required this.icon,
-      required this.title,
-      required this.subtitle,
-      this.onTap});
+/// One "Services" shortcut: navy icon above a short label. The full title
+/// and detail are read out by screen readers.
+class _ServiceShortcut extends StatelessWidget {
+  const _ServiceShortcut({required this.service, this.onTap});
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
+  final _ServiceLink service;
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.white,
-      borderRadius: BorderRadius.circular(AppRadii.md),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadii.md),
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: AppColors.border),
-            borderRadius: BorderRadius.circular(AppRadii.md),
-          ),
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, size: 22, color: AppColors.primary),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title,
-                        style: const TextStyle(
-                            color: AppColors.text,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700)),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: '${service.title}, ${service.subtitle}',
+        excludeSemantics: true,
+        child: InkWell(
+            onTap: onTap,
+            highlightColor: AppColors.primarySoft,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 4, vertical: AppSpacing.md),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(service.icon, size: 26, color: AppColors.primary),
+                const SizedBox(height: AppSpacing.sm),
+                Text(service.label,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    style: const TextStyle(
+                        color: AppColors.text,
+                        fontSize: 12.5,
+                        height: 1.25,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(service.hint,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                        height: 1.2)),
+              ]),
+            ),
         ),
-      ),
-    );
-  }
-}
-
-/// Lays [children] out in equal-width columns; the column count follows the
-/// available width so the grid works from small phones to tablets.
-class _ResponsiveGrid extends StatelessWidget {
-  const _ResponsiveGrid({required this.columnsFor, required this.children});
-
-  final int Function(double width) columnsFor;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, constraints) {
-      final columns = columnsFor(constraints.maxWidth);
-      final itemWidth =
-          (constraints.maxWidth - AppSpacing.sm * (columns - 1)) / columns;
-      return Wrap(
-        spacing: AppSpacing.sm,
-        runSpacing: AppSpacing.sm,
-        children: [
-          for (final child in children)
-            SizedBox(width: itemWidth, child: child),
-        ],
       );
-    });
-  }
 }

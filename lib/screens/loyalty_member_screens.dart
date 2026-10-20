@@ -167,8 +167,6 @@ class _LoyaltyHistoryScreenState extends ConsumerState<LoyaltyHistoryScreen> {
     final account = ref.watch(accountSummaryProvider).value;
     final balance = ref.watch(loyaltyMemberProvider).value?.points ??
         account?.loyalty.points;
-    final tier =
-        account == null ? null : loyaltyTierFor(account.loyalty.tierCode);
     return Scaffold(
       backgroundColor: AppColors.background,
       body: RedesignFonts(
@@ -177,7 +175,6 @@ class _LoyaltyHistoryScreenState extends ConsumerState<LoyaltyHistoryScreen> {
           child: Column(children: [
             _MockupBar(
                 title: 'Historique des points',
-                subtitle: tier == null ? null : 'Membre ${tier.name}',
                 onBack: () =>
                     context.canPop() ? context.pop() : context.go('/lo')),
             movements.when(
@@ -204,21 +201,15 @@ class _LoyaltyHistoryScreenState extends ConsumerState<LoyaltyHistoryScreen> {
                         bottom: AppSpacing.xl +
                             MediaQuery.of(context).padding.bottom),
                     children: [
-                      _BalanceHero(history: h),
                       if (h.expiry != null) _ExpiryNote(h.expiry!),
                       if (h.pending.isNotEmpty) ...[
                         const _HistTitle('En attente de livraison'),
                         _PendingBlock(h.pending),
                       ],
-                      const _HistTitle('Mouvements', bottom: 0),
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                        padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
                         child: _Segmented(
-                          labels: [
-                            'Tout (${h.settled.length})',
-                            'Gagnés (${h.settled.where((e) => e.m.points > 0).length})',
-                            'Utilisés (${h.settled.where((e) => e.m.points < 0).length})',
-                          ],
+                          labels: const ['Tout', 'Gagnés', 'Utilisés'],
                           selected: _filter.index,
                           onSelect: (i) =>
                               setState(() => _filter = _HistFilter.values[i]),
@@ -234,47 +225,11 @@ class _LoyaltyHistoryScreenState extends ConsumerState<LoyaltyHistoryScreen> {
                         )
                       else
                         for (final entry in months.entries) ...[
-                          _MonthHeader(
-                              entry.key,
-                              entry.value
-                                  .fold<int>(0, (s, e) => s + e.m.points)),
+                          _MonthHeader(entry.key),
                           _BorderedList(children: [
                             for (final e in entry.value) _MovementRow(e),
                           ]),
                         ],
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 22, 16, 0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            FilledButton(
-                              style: FilledButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: AppColors.white,
-                                minimumSize: const Size(0, 52),
-                                shape: const StadiumBorder(),
-                                textStyle: const TextStyle(
-                                    fontSize: 16, fontWeight: FontWeight.w600),
-                              ),
-                              onPressed: () => context.go('/panier'),
-                              child:
-                                  const Text('Utiliser mes points au panier'),
-                            ),
-                            const SizedBox(height: 4),
-                            TextButton(
-                              style: TextButton.styleFrom(
-                                foregroundColor: AppColors.primary,
-                                minimumSize: const Size(0, 44),
-                                textStyle: const TextStyle(
-                                    fontSize: 15, fontWeight: FontWeight.w600),
-                              ),
-                              onPressed: () => context.go('/lo'),
-                              child:
-                                  const Text('Comment gagner plus de points'),
-                            ),
-                          ],
-                        ),
-                      ),
                     ],
                   ),
                 );
@@ -289,14 +244,7 @@ class _LoyaltyHistoryScreenState extends ConsumerState<LoyaltyHistoryScreen> {
 
 /// Mockup colours for the history page.
 const _mist = Color(0xFFF1F3F9);
-const _sunTint = Color(0xFFFFF4D9);
-const _sun = Color(0xFFFFC23D);
-const _warn = Color(0xFF9A5B00);
-const _ok = Color(0xFF0F7A55);
-const _okTint = Color(0xFFDDF4EA);
-const _redTint = Color(0xFFFDEBEC);
 const _faint = Color(0xFF8A91A8);
-const _onBand = Color(0xFFDDE2F5);
 
 const _frMonths = [
   'janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', //
@@ -383,9 +331,8 @@ class _History {
 
 /// White bar of the mockup's sub pages: round grey back button and title.
 class _MockupBar extends StatelessWidget {
-  const _MockupBar({required this.title, this.subtitle, required this.onBack});
+  const _MockupBar({required this.title, required this.onBack});
   final String title;
-  final String? subtitle;
   final VoidCallback onBack;
 
   @override
@@ -402,412 +349,18 @@ class _MockupBar extends StatelessWidget {
           Expanded(
             child: Semantics(
               header: true,
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: displayFont(const TextStyle(
-                            color: AppColors.text,
-                            fontSize: 21,
-                            height: 1.1,
-                            fontWeight: FontWeight.w700))),
-                    if (subtitle != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(subtitle!,
-                            style:
-                                const TextStyle(color: _muted, fontSize: 12)),
-                      ),
-                  ]),
-            ),
-          ),
-        ]),
-      );
-}
-
-/// Dark card: balance and its value, the balance curve, three totals.
-class _BalanceHero extends StatefulWidget {
-  const _BalanceHero({required this.history});
-  final _History history;
-
-  @override
-  State<_BalanceHero> createState() => _BalanceHeroState();
-}
-
-class _BalanceHeroState extends State<_BalanceHero> {
-  int? _selected;
-
-  @override
-  Widget build(BuildContext context) {
-    final h = widget.history;
-    final ev = h.chronological;
-    final sel = _selected == null ? null : ev[_selected!];
-    final since = ev.isEmpty ? 0 : h.balance - ev.first.m.points;
-    final caption = sel == null
-        ? TextSpan(children: [
-            const TextSpan(
-                text: 'Aujourd’hui ',
-                style: TextStyle(
-                    color: AppColors.white, fontWeight: FontWeight.w600)),
-            TextSpan(
-                text: '${h.balance} points, ${since >= 0 ? '+' : '−'}'
-                    '${since.abs()} depuis votre inscription'),
-          ])
-        : TextSpan(children: [
-            TextSpan(
-                text: '${sel.shortDate} ',
-                style: const TextStyle(
-                    color: AppColors.white, fontWeight: FontWeight.w600)),
-            TextSpan(
-                text: '${sel.m.label}, ${sel.m.points > 0 ? '+' : '−'}'
-                    '${sel.m.points.abs()} : solde ${sel.balanceAfter} points'),
-          ]);
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      decoration: BoxDecoration(
-          color: AppColors.primaryDark,
-          borderRadius: BorderRadius.circular(24)),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(children: [
-        Positioned(
-          right: -250,
-          top: -60,
-          child: IgnorePointer(
-            child: Transform.rotate(
-              angle: -0.21,
-              child: Container(
-                width: 420,
-                height: 170,
-                decoration: BoxDecoration(
-                  borderRadius:
-                      const BorderRadius.all(Radius.elliptical(210, 85)),
-                  border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.08), width: 1.5),
-                ),
-              ),
-            ),
-          ),
-        ),
-        Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Expanded(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Solde actuel',
-                          style: TextStyle(color: _onBand, fontSize: 12.5)),
-                      const SizedBox(height: 6),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text.rich(
-                          TextSpan(children: [
-                            TextSpan(text: '${h.balance}'),
-                            const TextSpan(
-                                text: ' points',
-                                style: TextStyle(
-                                    fontSize: 18,
-                                    letterSpacing: 0,
-                                    fontWeight: FontWeight.w700)),
-                          ]),
-                          style: displayFont(const TextStyle(
-                              color: AppColors.white,
-                              fontSize: 56,
-                              height: 0.9,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -1.4,
-                              fontFeatures: [FontFeature.tabularFigures()])),
-                        ),
-                      ),
-                    ]),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      const Text('Valeur en bon d’achat',
-                          style: TextStyle(color: _onBand, fontSize: 12.5)),
-                      const SizedBox(height: 2),
-                      Text(formatXof(h.balance * loyaltyPointValueXof),
-                          style: const TextStyle(
-                              color: AppColors.white,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                              fontFeatures: [FontFeature.tabularFigures()])),
-                    ]),
-              ),
-            ]),
-          ),
-          if (ev.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _BalanceChart(
-                      events: ev,
-                      balance: h.balance,
-                      selected: _selected,
-                      onSelect: (i) => setState(() => _selected = i),
-                    ),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(minHeight: 36),
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text.rich(caption,
-                            style: const TextStyle(
-                                color: _onBand,
-                                fontSize: 12.5,
-                                height: 1.4,
-                                fontFeatures: [FontFeature.tabularFigures()])),
-                      ),
-                    ),
-                  ]),
-            ),
-          Container(
-            margin: const EdgeInsets.only(top: 14),
-            decoration: BoxDecoration(
-                border: Border(
-                    top: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.1)))),
-            child: IntrinsicHeight(
-              child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _Stat('+${h.earned}', 'Gagnés', const Color(0xFF5FD3A2)),
-                    VerticalDivider(
-                        width: 1, color: Colors.white.withValues(alpha: 0.1)),
-                    _Stat('−${h.used}', 'Utilisés', const Color(0xFFFF8A8D)),
-                    VerticalDivider(
-                        width: 1, color: Colors.white.withValues(alpha: 0.1)),
-                    _Stat('+${h.pendingTotal}', 'En attente', _sun),
-                  ]),
-            ),
-          ),
-        ]),
-      ]),
-    );
-  }
-}
-
-class _Stat extends StatelessWidget {
-  const _Stat(this.value, this.label, this.dot);
-  final String value;
-  final String label;
-  final Color dot;
-
-  @override
-  Widget build(BuildContext context) => Expanded(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 12, 8, 14),
-          child: Column(children: [
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(value,
+              child: Text(title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: displayFont(const TextStyle(
-                      color: AppColors.white,
+                      color: AppColors.text,
                       fontSize: 21,
-                      fontWeight: FontWeight.w800,
-                      fontFeatures: [FontFeature.tabularFigures()]))),
-            ),
-            const SizedBox(height: 2),
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Container(
-                  width: 7,
-                  height: 7,
-                  decoration:
-                      BoxDecoration(color: dot, shape: BoxShape.circle)),
-              const SizedBox(width: 5),
-              Flexible(
-                child: Text(label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: _onBand, fontSize: 12)),
-              ),
-            ]),
-          ]),
-        ),
-      );
-}
-
-/// Stepped balance curve; tap or drag over it to select a movement.
-class _BalanceChart extends StatelessWidget {
-  const _BalanceChart(
-      {required this.events,
-      required this.balance,
-      required this.selected,
-      required this.onSelect});
-  final List<_Entry> events;
-  final int balance;
-  final int? selected;
-  final ValueChanged<int?> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    final start = events.first.date!;
-    final today = DateTime.now();
-    final end = today.isAfter(events.last.date!) ? today : events.last.date!;
-    final span = end.difference(start).inDays.clamp(1, 100000);
-    final xs = [
-      for (final e in events) e.date!.difference(start).inDays / span
-    ];
-    final mid = start.add(Duration(days: span ~/ 2));
-    final semantics = 'Évolution du solde de points du ${_shortDate(start)} '
-        'au ${_shortDate(end)} : de ${events.first.balanceAfter} à '
-        '$balance points';
-
-    return LayoutBuilder(builder: (context, c) {
-      void pick(double dx) {
-        final t = ((dx - 8) / (c.maxWidth - 16)).clamp(0.0, 1.0);
-        var best = 0;
-        for (var i = 1; i < xs.length; i++) {
-          if ((xs[i] - t).abs() < (xs[best] - t).abs()) best = i;
-        }
-        onSelect(best);
-      }
-
-      return Semantics(
-        label: semantics,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapDown: (d) => pick(d.localPosition.dx),
-          onHorizontalDragUpdate: (d) => pick(d.localPosition.dx),
-          onHorizontalDragEnd: (_) => onSelect(null),
-          child: CustomPaint(
-            size: Size(c.maxWidth, 96),
-            painter: _ChartPainter(
-              xs: xs,
-              balances: [for (final e in events) e.balanceAfter],
-              balance: balance,
-              selected: selected,
-              labels: (_shortDate(start), _shortDate(mid), _shortDate(end)),
+                      height: 1.1,
+                      fontWeight: FontWeight.w700))),
             ),
           ),
-        ),
+        ]),
       );
-    });
-  }
-}
-
-class _ChartPainter extends CustomPainter {
-  _ChartPainter(
-      {required this.xs,
-      required this.balances,
-      required this.balance,
-      required this.selected,
-      required this.labels});
-  final List<double> xs;
-  final List<int> balances;
-  final int balance;
-  final int? selected;
-  final (String, String, String) labels;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const base = 64.0, top = 12.0;
-    final maxV =
-        [...balances, balance, 50].reduce((a, b) => a > b ? a : b) * 1.1;
-    double x(double t) => 8 + t * (size.width - 16);
-    double y(num v) => base - v / maxV * (base - top);
-
-    // 50 pts guide and base line.
-    final guide = Paint()
-      ..color = Colors.white.withValues(alpha: 0.12)
-      ..strokeWidth = 1;
-    for (var d = x(0); d < x(1); d += 7) {
-      canvas.drawLine(Offset(d, y(50)), Offset(d + 3, y(50)), guide);
-    }
-    _text(canvas, '50 pts', Offset(x(0), y(50) - 17), 10.5, _onBand);
-    canvas.drawLine(Offset(x(0), base), Offset(x(1), base),
-        Paint()..color = Colors.white.withValues(alpha: 0.2));
-
-    // Stepped line.
-    final line = Path()..moveTo(x(0), y(balances.first));
-    for (var i = 1; i < xs.length; i++) {
-      line
-        ..lineTo(x(xs[i]), y(balances[i - 1]))
-        ..lineTo(x(xs[i]), y(balances[i]));
-    }
-    line.lineTo(x(1), y(balances.last));
-    final area = Path.from(line)
-      ..lineTo(x(1), base)
-      ..lineTo(x(0), base)
-      ..close();
-    canvas.drawPath(
-        area, Paint()..color = Colors.white.withValues(alpha: 0.07));
-    canvas.drawPath(
-        line,
-        Paint()
-          ..color = Colors.white
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..strokeJoin = StrokeJoin.round);
-
-    for (var i = 0; i < xs.length; i++) {
-      final o = Offset(x(xs[i]), y(balances[i]));
-      canvas.drawCircle(o, 4, Paint()..color = AppColors.primaryDark);
-      canvas.drawCircle(
-          o,
-          4,
-          Paint()
-            ..color = Colors.white
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.5);
-    }
-
-    // Today.
-    final now = Offset(x(1), y(balance));
-    canvas.drawCircle(now, 6, Paint()..color = AppColors.primaryDark);
-    canvas.drawCircle(now, 5, Paint()..color = _sun);
-    _text(canvas, '$balance', Offset(now.dx, now.dy - 25), 12, Colors.white,
-        bold: true, alignEnd: true);
-
-    // Selection.
-    final s = selected;
-    if (s != null) {
-      final sx = x(xs[s]);
-      canvas.drawLine(Offset(sx, 8), Offset(sx, base),
-          Paint()..color = _sun.withValues(alpha: 0.6));
-      final o = Offset(sx, y(balances[s]));
-      canvas.drawCircle(o, 8, Paint()..color = AppColors.primaryDark);
-      canvas.drawCircle(o, 6, Paint()..color = _sun);
-    }
-
-    _text(canvas, labels.$1, Offset(x(0), 74), 11, _onBand);
-    _text(canvas, labels.$2, Offset(x(0.5), 74), 11, _onBand, center: true);
-    _text(canvas, labels.$3, Offset(x(1), 74), 11, _onBand, alignEnd: true);
-  }
-
-  void _text(Canvas canvas, String s, Offset at, double size, Color color,
-      {bool bold = false, bool alignEnd = false, bool center = false}) {
-    final tp = TextPainter(
-      text: TextSpan(
-          text: s,
-          style: TextStyle(
-              color: color,
-              fontSize: size,
-              fontWeight: bold ? FontWeight.w700 : FontWeight.w400)),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    final dx = alignEnd
-        ? at.dx - tp.width
-        : center
-            ? at.dx - tp.width / 2
-            : at.dx;
-    tp.paint(canvas, Offset(dx, at.dy));
-  }
-
-  @override
-  bool shouldRepaint(_ChartPainter old) =>
-      old.selected != selected ||
-      old.balance != balance ||
-      old.balances != balances;
 }
 
 class _ExpiryNote extends StatelessWidget {
@@ -817,43 +370,32 @@ class _ExpiryNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final d = expiry.date;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration:
-          BoxDecoration(color: _mist, borderRadius: BorderRadius.circular(14)),
-      child: Row(children: [
-        const Icon(Icons.schedule_rounded, size: 18, color: AppColors.primary),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text.rich(
-            TextSpan(children: [
-              const TextSpan(
-                  text: 'Vos points restent valables 12 mois. '
-                      'Prochaine échéance : '),
-              TextSpan(
-                  text: '${expiry.points} points le ${_shortDate(d)} '
-                      '${d.year}',
-                  style: const TextStyle(
-                      color: _ink, fontWeight: FontWeight.w600)),
-              const TextSpan(text: '.'),
-            ]),
-            style: const TextStyle(color: _muted, fontSize: 13, height: 1.35),
-          ),
-        ),
-      ]),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Text.rich(
+        TextSpan(children: [
+          const TextSpan(
+              text: 'Vos points restent valables 12 mois. '
+                  'Prochaine échéance : '),
+          TextSpan(
+              text: '${expiry.points} points le ${_shortDate(d)} '
+                  '${d.year}',
+              style: const TextStyle(color: _ink, fontWeight: FontWeight.w600)),
+          const TextSpan(text: '.'),
+        ]),
+        style: const TextStyle(color: _muted, fontSize: 13, height: 1.35),
+      ),
     );
   }
 }
 
 class _HistTitle extends StatelessWidget {
-  const _HistTitle(this.title, {this.bottom = 10});
+  const _HistTitle(this.title);
   final String title;
-  final double bottom;
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: EdgeInsets.fromLTRB(16, 20, 16, bottom),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
         child: Semantics(
           header: true,
           child: Text(title,
@@ -919,88 +461,57 @@ class _Segmented extends StatelessWidget {
 }
 
 class _MonthHeader extends StatelessWidget {
-  const _MonthHeader(this.month, this.net);
+  const _MonthHeader(this.month);
   final String month;
-  final int net;
 
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
-        child: Row(children: [
-          Expanded(
-              child: Text(month,
-                  style: const TextStyle(
-                      color: _muted,
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w600))),
-          Text('${net >= 0 ? '+' : '−'}${net.abs()} pts',
-              style: const TextStyle(
-                  color: _muted,
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                  fontFeatures: [FontFeature.tabularFigures()])),
-        ]),
+        child: Text(month,
+            style: const TextStyle(
+                color: _muted, fontSize: 13.5, fontWeight: FontWeight.w600)),
       );
 }
 
 /// Rounded card around a list of rows, separated by thin lines.
 class _BorderedList extends StatelessWidget {
-  const _BorderedList({required this.children, this.dashed = false});
+  const _BorderedList({required this.children});
   final List<Widget> children;
-  final bool dashed;
 
   @override
-  Widget build(BuildContext context) {
-    final rows = Column(children: [
-      for (var i = 0; i < children.length; i++) ...[
-        if (i > 0) const Divider(height: 1, color: AppColors.border),
-        children[i],
-      ],
-    ]);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: dashed
-          ? CustomPaint(
-              foregroundPainter:
-                  _DashedBorderPainter(color: AppColors.border, width: 1.5),
-              child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20), child: rows),
-            )
-          : Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: AppColors.border),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: rows,
-            ),
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(children: [
+            for (var i = 0; i < children.length; i++) ...[
+              if (i > 0) const Divider(height: 1, color: AppColors.border),
+              children[i],
+            ],
+          ]),
+        ),
+      );
 }
 
 /// Row shape shared by the movements and the pending orders.
 class _HhRow extends StatelessWidget {
   const _HhRow(
       {required this.icon,
-      required this.iconBg,
-      required this.iconFg,
       required this.title,
       this.sub,
       this.detail,
       required this.amount,
-      required this.amountColor,
-      required this.unit,
       required this.semantics,
       this.onTap});
   final IconData icon;
-  final Color iconBg;
-  final Color iconFg;
   final String title;
   final String? sub;
   final String? detail;
   final String amount;
-  final Color amountColor;
-  final String unit;
   final String semantics;
   final VoidCallback? onTap;
 
@@ -1009,14 +520,8 @@ class _HhRow extends StatelessWidget {
     final row = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       child: Row(children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-              color: iconBg, borderRadius: BorderRadius.circular(13)),
-          child: Icon(icon, size: 20, color: iconFg),
-        ),
-        const SizedBox(width: 12),
+        Icon(icon, size: 22, color: _muted),
+        const SizedBox(width: 14),
         Expanded(
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1046,16 +551,12 @@ class _HhRow extends StatelessWidget {
           ]),
         ),
         const SizedBox(width: 8),
-        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text(amount,
-              style: displayFont(TextStyle(
-                  color: amountColor,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  fontFeatures: const [FontFeature.tabularFigures()]))),
-          const SizedBox(height: 2),
-          Text(unit, style: const TextStyle(color: _faint, fontSize: 11.5)),
-        ]),
+        Text('$amount pts',
+            style: const TextStyle(
+                color: _ink,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                fontFeatures: [FontFeature.tabularFigures()])),
       ]),
     );
     return Semantics(
@@ -1072,18 +573,14 @@ class _PendingBlock extends StatelessWidget {
   final List<LoyaltyMovement> pending;
 
   @override
-  Widget build(BuildContext context) => _BorderedList(dashed: true, children: [
+  Widget build(BuildContext context) => _BorderedList(children: [
         for (final m in pending)
           _HhRow(
             icon: Icons.schedule_rounded,
-            iconBg: _sunTint,
-            iconFg: _warn,
             // "Commande LO-… (en attente de livraison)" → "Commande LO-…".
             title: m.label.replaceAll(RegExp(r'\s*\(.*\)\s*$'), ''),
             sub: '${m.date}, crédités à la livraison',
             amount: '+${m.points}',
-            amountColor: _muted,
-            unit: 'en attente',
             semantics: '${m.label}, ${m.points} points crédités à la livraison',
             onTap: () => context.push('/commandes'),
           ),
@@ -1098,24 +595,20 @@ class _MovementRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final m = e.m;
     final l = m.label.toLowerCase();
-    final (IconData icon, Color bg, Color fg) = l.contains('parrain')
-        ? (Icons.group_add_rounded, _okTint, _ok)
+    final icon = l.contains('parrain')
+        ? Icons.group_add_outlined
         : m.points < 0
-            ? (Icons.local_offer_rounded, _redTint, AppColors.danger)
+            ? Icons.local_offer_outlined
             : l.contains('commande') || l.contains('achat')
-                ? (Icons.storefront_rounded, _loTint, AppColors.primary)
-                : (Icons.star_rounded, _sunTint, _warn);
+                ? Icons.storefront_outlined
+                : Icons.star_outline_rounded;
     final positive = m.points > 0;
     final amount = '${positive ? '+' : '−'}${m.points.abs()}';
     return _HhRow(
       icon: icon,
-      iconBg: bg,
-      iconFg: fg,
       title: m.label,
-      detail: '${e.shortDate}, solde après : ${e.balanceAfter} pts',
+      detail: e.shortDate,
       amount: amount,
-      amountColor: positive ? _ok : AppColors.danger,
-      unit: 'pts',
       semantics: '${m.label}, ${m.date}, $amount points, '
           'solde après ${e.balanceAfter} points',
     );
@@ -1286,9 +779,8 @@ class _CodeTicket extends StatelessWidget {
 
 /// 2 px blue dashed rounded border (Flutter has no dashed BoxBorder).
 class _DashedBorderPainter extends CustomPainter {
-  _DashedBorderPainter({this.color = AppColors.primary, this.width = 2});
-  final Color color;
-  final double width;
+  static const color = AppColors.primary;
+  static const width = 2.0;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1306,8 +798,7 @@ class _DashedBorderPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_DashedBorderPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.width != width;
+  bool shouldRepaint(_DashedBorderPainter oldDelegate) => false;
 }
 
 class _MockupSection extends StatelessWidget {

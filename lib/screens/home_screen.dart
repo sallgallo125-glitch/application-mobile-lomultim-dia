@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../contracts/home.dart';
 import '../features/home/home_providers.dart';
 import '../theme/tokens.dart';
+import '../utils/currency.dart';
 import '../widgets/app_header.dart';
 import '../widgets/card_faces.dart' show GiftCardFace;
 import 'boutique_screen.dart'
@@ -278,101 +281,129 @@ class _HomeContentView extends ConsumerWidget {
   }
 }
 
-/// Home entry point to buy a gift card for someone else.
-class _GiftCardPromo extends StatelessWidget {
+/// Home entry point to buy a gift card: same header rhythm as the other
+/// sections, a straight card preview and amounts to pick directly.
+class _GiftCardPromo extends StatefulWidget {
   const _GiftCardPromo();
 
   @override
+  State<_GiftCardPromo> createState() => _GiftCardPromoState();
+}
+
+class _GiftCardPromoState extends State<_GiftCardPromo> {
+  static const _amounts = [25000, 50000, 100000];
+  int _amount = 50000;
+
+  void _open([int? amount]) => context
+      .push(amount == null ? '/carte-cadeau' : '/carte-cadeau?montant=$amount');
+
+  @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      child: Material(
-        color: AppColors.primarySoft,
-        borderRadius: BorderRadius.circular(AppRadii.xl),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => context.push('/carte-cadeau'),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg, AppSpacing.lg, AppSpacing.md, AppSpacing.lg),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Offrez le choix',
-                          style: TextStyle(
-                              color: AppColors.text,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 4),
-                      const Text(
-                          'La carte cadeau LO Multimédia, de 5 000 à 1 000 000 FCFA.',
-                          style: TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 12.5,
-                              height: 1.35)),
-                      const SizedBox(height: AppSpacing.md),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          borderRadius: BorderRadius.circular(AppRadii.pill),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.card_giftcard,
-                                color: Colors.white, size: 16),
-                            SizedBox(width: 6),
-                            Text('Offrir maintenant',
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w700)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      SectionHeader(
+          title: 'Cartes cadeaux',
+          actionLabel: 'Voir →',
+          onActionPressed: _open),
+      const Padding(
+        padding:
+            EdgeInsets.only(left: AppSpacing.lg, top: 2, bottom: AppSpacing.md),
+        child: Text(
+          'Offrez le choix, de 5 000 à 1 000 000 FCFA.',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        child: Column(children: [
+          GestureDetector(
+            onTap: () => _open(_amount),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              // Two thirds of the width (about a real card's size), at most
+              // 300 so it stays a preview on tablets.
+              child: GiftCardFace(
+                  key: ValueKey(_amount),
+                  amountXof: _amount,
+                  maxWidth:
+                      math.min(MediaQuery.sizeOf(context).width * 2 / 3, 300)),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(children: [
+            for (final amount in _amounts) ...[
+              Expanded(
+                child: _AmountChoice(
+                  label: _spacedXof(amount),
+                  selected: amount == _amount,
+                  onTap: () => setState(() => _amount = amount),
                 ),
-                const SizedBox(width: AppSpacing.sm),
-                SizedBox(
-                  width: 128,
-                  height: 112,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Positioned(
-                        top: 0,
-                        right: 0,
-                        child: Transform.rotate(
-                          angle: 0.16,
-                          child: const GiftCardFace(
-                              amountXof: 100000, maxWidth: 104),
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        left: 0,
-                        child: Transform.rotate(
-                          angle: -0.1,
-                          child: const GiftCardFace(
-                              amountXof: 25000, maxWidth: 104),
-                        ),
-                      ),
-                    ],
-                  ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+            ],
+            Expanded(
+              child: _AmountChoice(
+                  label: 'Autre', selected: false, onTap: () => _open()),
+            ),
+          ]),
+          const SizedBox(height: AppSpacing.md),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: () => _open(_amount),
+              child: Text('Offrir ${formatXof(_amount)}',
+                  style: const TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ]),
+      ),
+    ]);
+  }
+}
+
+/// "50 000" without the currency, to fit four choices on one row.
+String _spacedXof(int amount) => formatXof(amount).replaceAll(' FCFA', '');
+
+class _AmountChoice extends StatelessWidget {
+  const _AmountChoice(
+      {required this.label, required this.selected, required this.onTap});
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        selected: selected,
+        child: Material(
+          color: selected ? AppColors.primarySoft : AppColors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.md),
+            side: BorderSide(
+                color: selected ? AppColors.primary : AppColors.border,
+                width: selected ? 1.5 : 1),
+          ),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(AppRadii.md),
+            child: SizedBox(
+              height: 44,
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(label,
+                      style: TextStyle(
+                          color:
+                              selected ? AppColors.primary : AppColors.text,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700)),
                 ),
-              ],
+              ),
             ),
           ),
         ),
-      ),
-    );
-  }
+      );
 }
 
 class _ServiceCard extends StatelessWidget {

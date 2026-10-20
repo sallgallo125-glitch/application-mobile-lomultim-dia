@@ -147,7 +147,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
         path: '/carte-cadeau',
         parentNavigatorKey: rootNavigatorKey,
-        builder: (context, state) => const GiftCardScreen()),
+        // ?montant=50000 preselects an amount (home gift card section).
+        builder: (context, state) => GiftCardScreen(
+            initialAmountXof:
+                int.tryParse(state.uri.queryParameters['montant'] ?? ''))),
     GoRoute(
         path: '/cartes-cadeaux',
         parentNavigatorKey: rootNavigatorKey,

@@ -37,8 +37,9 @@ class CheckoutRepository {
       if (address != null && address.trim().isNotEmpty)
         'address': address.trim(),
     });
-    if (raw is! Map<String, dynamic> || raw['data'] is! Map<String, dynamic>)
-      throw ApiParseError(path, 'invalid checkout response');
+    if (raw is! Map<String, dynamic> || raw['data'] is! Map<String, dynamic>) {
+      throw const ApiParseError(path, 'invalid checkout response');
+    }
     return OrderSummary.fromJson(raw['data'] as Map<String, dynamic>);
   }
 }

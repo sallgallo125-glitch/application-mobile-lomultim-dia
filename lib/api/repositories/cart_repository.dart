@@ -27,8 +27,9 @@ class CartRepository {
       _cart(_api.delete('/api/v1/cart/items/$id'), '/api/v1/cart/items/$id');
   Future<Cart> _cart(Future<dynamic> response, String path) async {
     final raw = await response;
-    if (raw is! Map<String, dynamic> || raw['data'] is! Map<String, dynamic>)
+    if (raw is! Map<String, dynamic> || raw['data'] is! Map<String, dynamic>) {
       throw ApiParseError(path, 'invalid cart');
+    }
     return Cart.fromJson(raw['data'] as Map<String, dynamic>);
   }
 }

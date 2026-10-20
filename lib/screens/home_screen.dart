@@ -17,7 +17,6 @@ import '../widgets/commerce/product_rail.dart';
 import '../widgets/commerce/promo_banner_carousel.dart';
 import '../widgets/error_state.dart';
 import '../widgets/loading_state.dart';
-import '../widgets/shimmer.dart';
 import '../widgets/search_field.dart';
 import '../widgets/section_header.dart';
 import '../widgets/header_actions.dart';

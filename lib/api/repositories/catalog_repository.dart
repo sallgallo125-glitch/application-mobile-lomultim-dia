@@ -50,8 +50,9 @@ class CatalogRepository {
     final path = '/api/v1/products/$id';
     final raw = await _apiClient.getCached(path,
         maxAge: productMaxAge, onRefreshed: onRefreshed);
-    if (raw is! Map<String, dynamic> || raw['data'] is! Map<String, dynamic>)
+    if (raw is! Map<String, dynamic> || raw['data'] is! Map<String, dynamic>) {
       throw ApiParseError(path, 'expected product envelope, got $raw');
+    }
     try {
       return ProductDetail.fromJson(raw['data'] as Map<String, dynamic>);
     } catch (error) {
@@ -68,8 +69,9 @@ class CatalogRepository {
     final raw = await _apiClient.post(
         path, {'author': author, 'rating': rating, 'comment': comment});
     _apiClient.forget('/api/v1/products/$productId');
-    if (raw is! Map<String, dynamic> || raw['data'] is! Map<String, dynamic>)
+    if (raw is! Map<String, dynamic> || raw['data'] is! Map<String, dynamic>) {
       throw ApiParseError(path, 'expected review envelope, got $raw');
+    }
     try {
       return ProductReview.fromJson(raw['data'] as Map<String, dynamic>);
     } catch (error) {

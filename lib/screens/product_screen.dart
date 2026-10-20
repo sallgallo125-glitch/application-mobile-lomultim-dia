@@ -19,7 +19,6 @@ import '../widgets/commerce/product_image.dart';
 import '../widgets/commerce/product_rail.dart';
 import '../widgets/error_state.dart';
 import '../widgets/loading_state.dart';
-import '../widgets/shimmer.dart';
 import '../widgets/header_actions.dart';
 import '../widgets/commerce/stepper_button.dart';
 
@@ -44,7 +43,7 @@ class _ProductScreenState extends ConsumerState<ProductScreen> {
   }
 
   bool _adding = false;
-  int _quantity = 1;
+  final int _quantity = 1;
   static const _maxQuantity = 99;
 
   /// Cart line created by "Ajouter au panier", and the configuration it was
@@ -131,9 +130,10 @@ class _ProductScreenState extends ConsumerState<ProductScreen> {
       }
       return true;
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text("Impossible d'ajouter ce produit. Réessayez.")));
+      }
       return false;
     } finally {
       _adding = false;
@@ -600,8 +600,8 @@ class _ProductContentState extends ConsumerState<_ProductContent> {
                                           CrossAxisAlignment.start,
                                       children: [
                                         if (product.reviews.isEmpty)
-                                          Padding(
-                                            padding: const EdgeInsets.only(
+                                          const Padding(
+                                            padding: EdgeInsets.only(
                                                 bottom: AppSpacing.md),
                                             child: Text(
                                                 'Aucun avis pour le moment. Soyez le premier à partager votre expérience.',
@@ -941,10 +941,9 @@ class _OptionChip extends StatelessWidget {
 /// "Title ............ Action →" (`.section-head`).
 class _SectionHead extends StatelessWidget {
   const _SectionHead(
-      {required this.title, this.action, this.size = 18, this.arrow = true});
+      {required this.title, this.action, this.arrow = true});
   final String title;
   final (String, VoidCallback)? action;
-  final double size;
 
   /// Arrow after the action label: only for links that open something.
   final bool arrow;
@@ -952,8 +951,8 @@ class _SectionHead extends StatelessWidget {
   Widget build(BuildContext context) => Row(children: [
         Expanded(
             child: Text(title,
-                style: TextStyle(
-                    fontSize: size,
+                style: const TextStyle(
+                    fontSize: 18,
                     fontWeight: FontWeight.w700,
                     letterSpacing: -.3))),
         if (action != null)
@@ -1008,13 +1007,13 @@ class _ServiceBlock extends StatelessWidget {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text.rich(
+                    const Text.rich(
                       TextSpan(children: [
-                        const TextSpan(text: 'Livré sous '),
-                        const TextSpan(
+                        TextSpan(text: 'Livré sous '),
+                        TextSpan(
                             text: '24 h',
                             style: TextStyle(fontWeight: FontWeight.w700)),
-                        const TextSpan(text: ' à Dakar · 48 à 72 h ailleurs'),
+                        TextSpan(text: ' à Dakar · 48 à 72 h ailleurs'),
                       ]),
                       style: AppText.body,
                     ),

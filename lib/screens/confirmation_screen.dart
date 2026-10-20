@@ -144,8 +144,8 @@ class ConfirmationScreen extends StatelessWidget {
                           TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    _TrackingTimeline(
-                      steps: const [
+                    const _TrackingTimeline(
+                      steps: [
                         _TrackingStep('Commande reçue', "Aujourd'hui", true),
                         _TrackingStep(
                             'Paiement confirmé', 'Sous 30 min', false),
@@ -221,7 +221,7 @@ class ConfirmationScreen extends StatelessWidget {
           Expanded(
               child: Text(label,
                   style:
-                      TextStyle(color: AppColors.textSecondary, fontSize: 13))),
+                      const TextStyle(color: AppColors.textSecondary, fontSize: 13))),
           Text(
             value,
             style: TextStyle(

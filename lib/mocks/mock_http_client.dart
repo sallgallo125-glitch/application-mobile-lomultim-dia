@@ -179,7 +179,7 @@ class MockHttpClient extends http.BaseClient {
     if (request.method == 'GET' && path == '/api/v1/categories') {
       return _json(request, 200, {'data': mockCategories});
     }
-    if (request.method == 'GET' && path == '/api/v1/account/summary')
+    if (request.method == 'GET' && path == '/api/v1/account/summary') {
       return _json(request, 200, {
         'data': {
           'name': 'Aissatou Diop',
@@ -192,24 +192,29 @@ class MockHttpClient extends http.BaseClient {
           }
         }
       });
-    if (request.method == 'GET' && path == '/api/v1/orders')
+    }
+    if (request.method == 'GET' && path == '/api/v1/orders') {
       return _json(request, 200, {'data': _orders});
+    }
     final orderRoute =
         RegExp(r'^/api/v1/orders/([^/]+)(/cancel)?$').firstMatch(path);
     if (orderRoute != null) {
       final number = Uri.decodeComponent(orderRoute.group(1)!);
       final order = _orders.where((o) => o['number'] == number).firstOrNull;
-      if (order == null)
+      if (order == null) {
         return _json(request, 404,
             {'code': 'ORDER_NOT_FOUND', 'message': 'Commande introuvable.'});
-      if (request.method == 'GET' && orderRoute.group(2) == null)
+      }
+      if (request.method == 'GET' && orderRoute.group(2) == null) {
         return _json(request, 200, {'data': _orderDetail(order)});
+      }
       if (request.method == 'POST' && orderRoute.group(2) != null) {
-        if (!_cancellable(order))
+        if (!_cancellable(order)) {
           return _json(request, 409, {
             'code': 'ORDER_NOT_CANCELLABLE',
             'message': 'Cette commande ne peut plus être annulée.'
           });
+        }
         order['status'] = 'Annulée';
         order['events'] = [
           ..._events(order),
@@ -220,23 +225,26 @@ class MockHttpClient extends http.BaseClient {
       }
     }
 
-    if (request.method == 'GET' && path == '/api/v1/cart')
+    if (request.method == 'GET' && path == '/api/v1/cart') {
       return _json(request, 200, {'data': _cart()});
+    }
     if (request.method == 'POST' && path == '/api/v1/checkout') {
-      if (_cartItems.isEmpty)
+      if (_cartItems.isEmpty) {
         return _json(
             request, 422, {'code': 'empty_cart', 'message': 'Cart is empty'});
+      }
       final body =
           jsonDecode((request as http.Request).body) as Map<String, dynamic>;
       final method =
           DeliveryMethod.fromCode(body['deliveryMethodCode'] as String?);
       final zoneId = body['zoneId'] as String? ?? defaultZoneId;
       final payment = PaymentMethod.fromCode(body['paymentMethod'] as String?);
-      if (payment == null || !payment.available)
+      if (payment == null || !payment.available) {
         return _json(request, 422, {
           'code': 'payment_unavailable',
           'message': 'Payment method not available yet'
         });
+      }
       final subtotal = _cart()['subtotalXof'] as int;
       final totals = calculateCheckoutTotals(
           subtotal, method, zoneId, body['promoCode'] as String? ?? '');
@@ -245,16 +253,18 @@ class MockHttpClient extends http.BaseClient {
       // site; whatever is left is paid with [payment].
       final guest = body['customerType'] == 'GUEST';
       final requestedPoints = (body['pointsToUse'] as num?)?.toInt() ?? 0;
-      if (guest && requestedPoints > 0)
+      if (guest && requestedPoints > 0) {
         return _json(request, 422, {
           'code': 'ACCOUNT_REQUIRED',
           'message': 'Les points LO+ nécessitent un compte.'
         });
-      if (requestedPoints < 0 || requestedPoints > member.points)
+      }
+      if (requestedPoints < 0 || requestedPoints > member.points) {
         return _json(request, 422, {
           'code': 'INSUFFICIENT_POINTS',
           'message': 'Solde de points insuffisant.'
         });
+      }
       // Up to the whole order, at least 10 points (CFG.ptsPaiementMin).
       final pointsUsed = requestedPoints
           .clamp(0, redeemablePoints(member.points, totals.totalXof))
@@ -276,8 +286,9 @@ class MockHttpClient extends http.BaseClient {
           totals.subtotalXof - totals.promoDiscountXof - pointsDiscount,
           'BLEU');
       if (!guest) member.spendPoints(pointsUsed, orderNumber);
-      if (giftApplied > 0)
+      if (giftApplied > 0) {
         member.debitGiftCard(giftCode, giftApplied, orderNumber);
+      }
       // Guests earn nothing (no LO+ account to credit).
       if (!guest) member.creditPendingPoints(pointsToEarn, orderNumber);
       // Trackable right away with its number + the checkout phone.
@@ -341,9 +352,10 @@ class MockHttpClient extends http.BaseClient {
           .firstWhere((item) => item['id'] == body['productId']);
       final productId = product['id'] as String;
       final quantity = (body['quantity'] as num?)?.toInt() ?? 1;
-      if (quantity < 1 || quantity > 99)
+      if (quantity < 1 || quantity > 99) {
         return _json(request, 422,
             {'code': 'INVALID_QUANTITY', 'message': 'Quantité invalide.'});
+      }
       final addonIds = ((body['addonIds'] as List<dynamic>?) ?? const [])
           .cast<String>()
           .toList()
@@ -360,9 +372,10 @@ class MockHttpClient extends http.BaseClient {
             .cast<Map<String, dynamic>>()
             .where((c) => c['id'] == choiceId)
             .firstOrNull;
-        if (choice == null)
+        if (choice == null) {
           return _json(request, 422,
               {'code': 'INVALID_OPTION', 'message': 'Option indisponible.'});
+        }
         chosen.add(choice);
       }
       final unitPrice = (product['priceXof'] as int) +
@@ -376,7 +389,7 @@ class MockHttpClient extends http.BaseClient {
       ].join('_');
       final existing =
           _cartItems.where((item) => item['id'] == lineId).toList();
-      if (existing.isEmpty)
+      if (existing.isEmpty) {
         _cartItems.add({
           'id': lineId,
           'productId': productId,
@@ -394,27 +407,30 @@ class MockHttpClient extends http.BaseClient {
           'addonIds': addonIds,
           'options': requested,
         });
-      else
+      } else {
         existing.first['quantity'] =
             (existing.first['quantity'] as int) + quantity;
+      }
       await _saveCart();
       return _json(request, 200, {'data': _cart()});
     }
     if (path.startsWith('/api/v1/cart/items/')) {
       final id = path.substring('/api/v1/cart/items/'.length);
       final item = _cartItems.where((value) => value['id'] == id).toList();
-      if (item.isEmpty)
+      if (item.isEmpty) {
         return _json(request, 404,
             {'code': 'not_found', 'message': 'Cart item not found'});
+      }
       if (request.method == 'DELETE') _cartItems.remove(item.first);
       if (request.method == 'PATCH') {
         final body =
             jsonDecode((request as http.Request).body) as Map<String, dynamic>;
         final quantity = body['quantity'] as int;
-        if (quantity < 1)
+        if (quantity < 1) {
           _cartItems.remove(item.first);
-        else
+        } else {
           item.first['quantity'] = quantity;
+        }
       }
       await _saveCart();
       return _json(request, 200, {'data': _cart()});
@@ -439,9 +455,10 @@ class MockHttpClient extends http.BaseClient {
     if (request.method == 'GET' && path.startsWith('/api/v1/products/')) {
       final id = path.substring('/api/v1/products/'.length);
       final matches = mockProducts.where((product) => product['id'] == id);
-      if (matches.isEmpty)
+      if (matches.isEmpty) {
         return _json(request, 404,
             {'code': 'not_found', 'message': 'Product not found'});
+      }
       final product = matches.first;
       return _json(request, 200, {
         'data': {
@@ -461,21 +478,21 @@ class MockHttpClient extends http.BaseClient {
           'reviews': [
             ...?_userReviews[id],
             {
-              'id': '${id}-review-1',
+              'id': '$id-review-1',
               'author': 'Aissatou D.',
               'rating': 5,
               'comment': 'Très bon produit et livraison rapide.',
               'verified': true
             },
             {
-              'id': '${id}-review-2',
+              'id': '$id-review-2',
               'author': 'Moussa N.',
               'rating': 4,
               'comment': 'Conforme à la description, bon rapport qualité-prix.',
               'verified': true
             },
             {
-              'id': '${id}-review-3',
+              'id': '$id-review-3',
               'author': 'Fatou S.',
               'rating': 5,
               'comment':

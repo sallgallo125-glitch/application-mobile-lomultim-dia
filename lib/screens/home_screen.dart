@@ -8,7 +8,7 @@ import '../theme/tokens.dart';
 import '../widgets/app_header.dart';
 import '../widgets/card_faces.dart' show GiftCardFace;
 import 'boutique_screen.dart'
-    show CatalogSort, shopOpenedFromHomeProvider, shopSortRequestProvider;
+    show CatalogSort, shopSortRequestProvider;
 import '../features/catalog/shop_filters.dart';
 import '../widgets/commerce/category_card.dart';
 import '../widgets/commerce/product_rail.dart';
@@ -157,10 +157,10 @@ class _HomeContentView extends ConsumerWidget {
                 return CategoryCircle(
                   category: category,
                   onPressed: () {
-                    ref.read(shopFiltersProvider.notifier).state = ref
-                        .read(shopFiltersProvider)
-                        .copyWith(categoryIds: {category.id});
-                    ref.read(shopOpenedFromHomeProvider.notifier).state = true;
+                    // Fresh filters: an old brand or price filter would
+                    // otherwise hide the whole department.
+                    ref.read(shopFiltersProvider.notifier).state =
+                        ShopFilterState(categoryIds: {category.id});
                     context.go('/boutique');
                   },
                 );

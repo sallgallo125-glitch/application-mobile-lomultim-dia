@@ -28,9 +28,6 @@ export '../features/catalog/shop_filters.dart' show CatalogSort;
 /// shop applies it.
 final shopSortRequestProvider = StateProvider<CatalogSort?>((ref) => null);
 
-/// True when the shop was opened from a home "Nos rayons" circle: the shop
-/// then shows a back button to the home page.
-final shopOpenedFromHomeProvider = StateProvider<bool>((ref) => false);
 
 /// True while the shop's products scroll down: the bottom bar slides away
 /// and comes back as soon as the scrolling stops.
@@ -99,13 +96,7 @@ class _BoutiqueScreenState extends ConsumerState<BoutiqueScreen> {
           child: Column(children: [
             AppHeader(
               title: '',
-              onBack: ref.watch(shopOpenedFromHomeProvider)
-                  ? () {
-                      ref.read(shopOpenedFromHomeProvider.notifier).state =
-                          false;
-                      context.go('/');
-                    }
-                  : null,
+              // No back button, however the shop was reached: it is a tab.
               searchField: SearchField(
                   controller: _search,
                   placeholder: 'Rechercher un produit, une marque…',

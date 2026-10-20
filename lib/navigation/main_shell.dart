@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../widgets/header_actions.dart' show cartCountProvider;
 import '../screens/boutique_screen.dart'
-    show shopNavBarHiddenProvider, shopOpenedFromHomeProvider;
+    show shopNavBarHiddenProvider;
 import '../theme/tokens.dart';
 
 /// Tabs of the bottom bar (filled icons, like the reference design).
@@ -48,10 +48,6 @@ class MainShell extends ConsumerWidget {
             currentIndex: navigationShell.currentIndex,
             onSelect: (index) {
               ref.read(shopNavBarHiddenProvider.notifier).state = false;
-              // Opened from the bottom bar: the shop shows no back button.
-              ProviderScope.containerOf(context)
-                  .read(shopOpenedFromHomeProvider.notifier)
-                  .state = false;
               navigationShell.goBranch(index,
                   initialLocation: index == navigationShell.currentIndex ||
                       index == _loyaltyTab);

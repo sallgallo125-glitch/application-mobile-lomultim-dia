@@ -7,7 +7,6 @@ import '../contracts/product.dart';
 import '../features/catalog/catalog_providers.dart';
 import '../features/catalog/shop_filters.dart';
 import '../features/customer/customer_providers.dart';
-import '../screens/boutique_screen.dart' show shopOpenedFromHomeProvider;
 import '../theme/tokens.dart';
 import 'commerce/product_rail.dart';
 import 'section_header.dart';
@@ -17,7 +16,6 @@ void _openShop(BuildContext context, WidgetRef ref,
     ShopFilterState Function(ShopFilterState) update) {
   ref.read(shopFiltersProvider.notifier).state =
       update(const ShopFilterState());
-  ref.read(shopOpenedFromHomeProvider.notifier).state = true;
   context.go('/boutique');
 }
 

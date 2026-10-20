@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile_app/screens/product_screen.dart' show buyBarAddKey;
 import 'package:mobile_app/main.dart';
 import 'package:mobile_app/navigation/app_router.dart';
 
@@ -33,7 +34,7 @@ void main() {
     expect(find.textContaining('HP ProBook 450 G10'), findsWidgets);
 
     // The buy bar is pinned at the bottom: no scrolling needed.
-    final addButton = find.widgetWithText(ElevatedButton, 'Ajouter au panier');
+    final addButton = find.byKey(buyBarAddKey);
     expect(addButton.hitTestable(), findsOneWidget);
     await tester.tap(addButton);
     await settle(tester);
@@ -43,34 +44,25 @@ void main() {
     await tester.tap(find.text('ajouté au panier'));
     await settle(tester);
     expect(find.textContaining('HP ProBook 450 G10'), findsOneWidget);
-    expect(find.text('Continuer la commande'), findsOneWidget);
+    expect(find.textContaining('Commander ('), findsOneWidget);
     expect(find.text('ajouté au panier'), findsNothing);
 
     // Increase the item from the cart after opening it via the toast.
     await tester.tap(find.byTooltip('Augmenter'));
     await settle(tester);
-    expect(cartBadge('2'), findsOneWidget);
+    expect(find.bySemanticsLabel('Onglet panier, 2 articles'), findsOneWidget);
 
     await open(tester, '/panier');
     expect(find.textContaining('HP ProBook 450 G10'), findsOneWidget);
     expect(find.text('2'), findsWidgets);
-    expect(find.text('Continuer la commande'), findsOneWidget);
-    expect(find.text('Total estimé'), findsOneWidget);
+    expect(find.textContaining('Commander ('), findsOneWidget);
+    expect(find.text('Total'), findsWidgets);
     expect(find.text('Utiliser mes points LO+'), findsOneWidget);
     expect(
       find.text(
-          'Connectez-vous à votre compte LO+ pour utiliser vos points sur cette commande.'),
+          'Connectez-vous pour les utiliser sur cette commande.'),
       findsOneWidget,
     );
-    expect(find.text('Afficher le détail'), findsOneWidget);
-    expect(find.text('Sous-total (2 articles)'), findsNothing);
-    await tester.tap(find.text('Afficher le détail'));
-    await tester.pumpAndSettle();
-    expect(find.text('Masquer le détail'), findsOneWidget);
-    expect(find.text('Sous-total (2 articles)'), findsOneWidget);
-    expect(find.text('Avec un compte LO+'), findsOneWidget);
-    expect(find.text('Connectez-vous pour les cumuler'), findsOneWidget);
-    expect(find.textContaining('/ unité'), findsOneWidget);
 
     // − goes back to 1, delete empties the cart.
     await tester.tap(find.byIcon(Icons.remove));
@@ -149,7 +141,7 @@ void main() {
     // Before adding: no −/+, just the price and "Ajouter au panier".
     expect(find.byTooltip('Augmenter la quantité'), findsNothing);
     expect(find.text('19 500 FCFA'), findsWidgets);
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Ajouter au panier'));
+    await tester.tap(find.byKey(buyBarAddKey));
     await settle(tester);
     // After: "Dans le panier − 1 +", then up to 3 cartons.
     expect(find.text('Dans le panier'), findsOneWidget);
@@ -166,7 +158,7 @@ void main() {
     }
     await tester.tap(find.byTooltip('Retirer du panier'));
     await settle(tester);
-    expect(find.widgetWithText(ElevatedButton, 'Ajouter au panier'),
+    expect(find.byKey(buyBarAddKey),
         findsOneWidget);
     appRouter.go('/');
     await settle(tester);

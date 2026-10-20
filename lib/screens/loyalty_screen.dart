@@ -19,8 +19,8 @@ import '../widgets/nav_clearance.dart';
 /// Pale blue-grey tiles and cards on the white page.
 const _mist = Color(0xFFF1F3F9);
 
-/// Light text on the blue band (contrast > 7:1 on primaryDark).
-const _onBand = Color(0xFFDDE2F5);
+/// Secondary text in the white page header.
+const _onBand = AppColors.textSecondary;
 
 class LoyaltyScreen extends ConsumerWidget {
   const LoyaltyScreen({super.key, this.backTo});
@@ -34,9 +34,9 @@ class LoyaltyScreen extends ConsumerWidget {
     final summary = ref.watch(accountSummaryProvider);
     final onBack = backTo == null ? null : () => context.go('/$backTo');
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: SystemUiOverlayStyle.dark,
       child: Scaffold(
-        backgroundColor: AppColors.primaryDark,
+        backgroundColor: AppColors.white,
         body: RedesignFonts(
             child: SafeArea(
           bottom: false,
@@ -63,7 +63,7 @@ class LoyaltyScreen extends ConsumerWidget {
   }
 }
 
-/// Blue band opening the page: the LO+ mark with a subtitle, the bell, and
+/// White header opening the page: the LO+ mark with a subtitle, the bell, and
 /// [extra] below; [overlap] (the card) straddles its lower edge, reaching
 /// [overlapHeight] up into the blue.
 class _Band extends StatelessWidget {
@@ -84,7 +84,7 @@ class _Band extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            color: AppColors.primaryDark,
+            color: AppColors.white,
             padding: EdgeInsets.fromLTRB(
                 onBack == null ? AppSpacing.lg : AppSpacing.xs,
                 AppSpacing.xs,
@@ -97,7 +97,7 @@ class _Band extends StatelessWidget {
                   if (onBack != null)
                     Padding(
                       padding: const EdgeInsets.only(right: AppSpacing.sm),
-                      child: AppBackButton(onPressed: onBack!, onDark: true),
+                      child: AppBackButton(onPressed: onBack!),
                     ),
                   Expanded(
                     child: Semantics(
@@ -113,14 +113,10 @@ class _Band extends StatelessWidget {
                                 TextSpan(
                                     text: '+',
                                     style:
-                                        TextStyle(color: AppColors.goldOnDark)),
+                                        TextStyle(color: AppColors.primary)),
                               ]),
-                              style: displayFont(const TextStyle(
-                                  color: AppColors.white,
-                                  fontSize: 30,
-                                  height: 1.1,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.6)),
+                              style: displayFont(AppText.pageTitle.copyWith(
+                                  letterSpacing: -0.2)),
                             ),
                             Text(subtitle,
                                 style: const TextStyle(
@@ -146,9 +142,9 @@ class _Band extends StatelessWidget {
                 left: 0,
                 right: 0,
                 height: overlapHeight,
-                child: const ColoredBox(color: AppColors.primaryDark)),
+                child: const ColoredBox(color: AppColors.white)),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
               child: Center(child: overlap),
             ),
           ]),
@@ -172,22 +168,20 @@ class _GuestContent extends StatelessWidget {
             overlapHeight: 80,
             extra: Padding(
               padding: const EdgeInsets.only(top: 18, bottom: AppSpacing.lg),
-              child: SizedBox(
-                width: 260,
-                child: Text('Vos achats vous font monter',
-                    style: displayFont(const TextStyle(
-                        color: AppColors.white,
-                        fontSize: 40,
-                        height: 1,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.8))),
-              ),
+              child: Text('Vos achats vous font monter',
+                  style: displayFont(const TextStyle(
+                      color: AppColors.primaryDark,
+                      fontSize: 30,
+                      height: 1.05,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.6))),
             ),
             overlap: const LoyaltyCardFace(
               cardNumber: '2026 •••• ••••',
               memberName: 'Votre nom ici',
               points: null,
               tierCode: 'BLEU',
+              aspect: loyaltyCardCompactAspect,
             ),
           ),
           Padding(
@@ -236,7 +230,7 @@ class _LoyaltyContent extends ConsumerWidget {
             subtitle: 'Membre ${tier.name}',
             onBack: onBack,
             overlapHeight: 104,
-            extra: const SizedBox(height: AppSpacing.lg),
+            extra: const SizedBox(height: AppSpacing.sm),
             // Tap to turn the card over ("Ma carte" opens the QR page).
             overlap: FlippableLoyaltyCard(
               cardNumber: member?.cardNumber ?? '•••• •••• ••••',
@@ -246,6 +240,7 @@ class _LoyaltyContent extends ConsumerWidget {
                   '',
               points: points,
               tierCode: loyalty.tierCode,
+              aspect: loyaltyCardCompactAspect,
             ),
           ),
           const Padding(
@@ -256,8 +251,8 @@ class _LoyaltyContent extends ConsumerWidget {
                     TextStyle(color: AppColors.textSecondary, fontSize: 12.5)),
           ),
           Padding(
-            padding:
-                const EdgeInsets.fromLTRB(AppSpacing.lg, 22, AppSpacing.lg, 0),
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -277,16 +272,16 @@ class _LoyaltyContent extends ConsumerWidget {
                               const TextSpan(
                                   text: ' points',
                                   style: TextStyle(
-                                      fontSize: 20,
+                                      fontSize: 18,
                                       letterSpacing: 0,
                                       fontWeight: FontWeight.w700)),
                             ]),
                             style: displayFont(const TextStyle(
                                 color: AppColors.text,
-                                fontSize: 76,
-                                height: 0.95,
+                                fontSize: 48,
+                                height: 1,
                                 fontWeight: FontWeight.w800,
-                                letterSpacing: -2,
+                                letterSpacing: -1.2,
                                 fontFeatures: [FontFeature.tabularFigures()])),
                           ),
                         ),
@@ -315,10 +310,10 @@ class _LoyaltyContent extends ConsumerWidget {
                 Row(children: [
                   _Tile(Icons.qr_code_2_rounded, 'Ma carte',
                       () => context.push('/lo/carte')),
-                  const SizedBox(width: AppSpacing.sm),
+                  const SizedBox(width: AppSpacing.md),
                   _Tile(Icons.history_rounded, 'Historique',
                       () => context.push('/lo/historique')),
-                  const SizedBox(width: AppSpacing.sm),
+                  const SizedBox(width: AppSpacing.md),
                   _Tile(Icons.group_add_outlined, 'Parrainer',
                       () => context.push('/lo/parrainage')),
                 ]),
@@ -359,7 +354,8 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 28, bottom: AppSpacing.lg),
+        padding:
+            const EdgeInsets.only(top: AppSpacing.xl, bottom: AppSpacing.md),
         child: Semantics(
           header: true,
           child:
@@ -374,7 +370,7 @@ class _SectionTitle extends StatelessWidget {
       );
 }
 
-/// Grey shortcut tile under the balance.
+/// Minimal shortcut under the balance, without a colored tile background.
 class _Tile extends StatelessWidget {
   const _Tile(this.icon, this.label, this.onTap);
   final IconData icon;
@@ -384,24 +380,33 @@ class _Tile extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Expanded(
         child: Material(
-          color: _mist,
-          borderRadius: BorderRadius.circular(16),
+          color: AppColors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.lg),
+            side: const BorderSide(color: AppColors.border),
+          ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
-              child: Column(children: [
-                Icon(icon, color: AppColors.primary, size: 24),
-                const SizedBox(height: 6),
-                Text(label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: AppColors.text,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600)),
-              ]),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 68),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(icon, color: AppColors.text, size: 22),
+                      const SizedBox(height: 7),
+                      Text(label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: AppColors.text,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w500)),
+                    ]),
+              ),
             ),
           ),
         ),
@@ -416,17 +421,18 @@ class _HowTo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-            color: _mist, borderRadius: BorderRadius.circular(18)),
+            color: _mist.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(AppRadii.lg)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           ConstrainedBox(
             constraints: const BoxConstraints(minWidth: 78),
             child: Text(figure,
                 style: displayFont(const TextStyle(
                     color: AppColors.primary,
-                    fontSize: 26,
+                    fontSize: 22,
                     height: 1,
                     fontWeight: FontWeight.w800,
                     fontFeatures: [FontFeature.tabularFigures()]))),
@@ -440,7 +446,7 @@ class _HowTo extends StatelessWidget {
       );
 }
 
-/// White notifications bell for the blue band, with the unread count.
+/// Notifications bell for the white header, with the unread count.
 class _BellButton extends ConsumerWidget {
   const _BellButton();
 
@@ -455,7 +461,7 @@ class _BellButton extends ConsumerWidget {
         backgroundColor: AppColors.danger,
         label: Text('$unread'),
         child: const Icon(Icons.notifications_outlined,
-            color: AppColors.white, size: 26),
+            color: AppColors.primaryDark, size: 26),
       ),
     );
   }
@@ -582,8 +588,7 @@ class _TierStep extends StatelessWidget {
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Padding(
-              padding:
-                  EdgeInsets.only(bottom: railFill == null ? 0 : AppSpacing.xl),
+              padding: EdgeInsets.only(bottom: railFill == null ? 0 : 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -596,7 +601,7 @@ class _TierStep extends StatelessWidget {
                               color: reached
                                   ? AppColors.text
                                   : AppColors.textSecondary,
-                              fontSize: isCurrent ? 22 : 19,
+                              fontSize: isCurrent ? 18 : 16,
                               height: 1.3,
                               fontWeight: isCurrent
                                   ? FontWeight.w800
@@ -619,9 +624,12 @@ class _TierStep extends StatelessWidget {
                       style: isCurrent
                           ? const TextStyle(
                               color: AppColors.primary,
-                              fontSize: 13,
+                              fontSize: 12.5,
                               fontWeight: FontWeight.w600)
-                          : AppText.caption),
+                          : const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12.5,
+                              height: 1.35)),
                 ],
               ),
             ),

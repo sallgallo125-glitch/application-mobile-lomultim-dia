@@ -31,7 +31,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final name = TextEditingController();
   final phone = TextEditingController();
   // Pre-filled with the code entered in the cart.
-  late final promo =
+  // Touched in initState: otherwise this lazy field is first built in
+  // dispose() when the promo section was never opened, reading `ref` too late.
+  late final TextEditingController promo =
       TextEditingController(text: ref.read(cartPromoCodeProvider));
 
   /// Promo code the customer applied (checked by [calculateCheckoutTotals]).
@@ -106,6 +108,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   @override
   void initState() {
     super.initState();
+    promo; // Builds the controller while `ref` is still usable.
     final user = ref.read(sessionUserProvider);
     if (user != null) {
       name.text = user.name;
@@ -854,9 +857,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     Icon(Icons.verified_user_outlined,
                         size: 13, color: AppColors.textSecondary),
                     SizedBox(width: 4),
-                    Text('Paiement sécurisé · Garantie constructeur',
-                        style: TextStyle(
-                            fontSize: 11, color: AppColors.textSecondary)),
+                    Flexible(
+                      child: Text('Paiement sécurisé · Garantie constructeur',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 11, color: AppColors.textSecondary)),
+                    ),
                   ]),
             ]),
           ),

@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../contracts/product.dart';
 import '../features/catalog/catalog_providers.dart';
 import '../features/cart/cart_providers.dart';
+import '../features/account/account_providers.dart';
 import '../features/customer/customer_providers.dart';
 import '../theme/tokens.dart';
 import '../utils/currency.dart';
@@ -158,12 +159,6 @@ class _ProductScreenState extends ConsumerState<ProductScreen> {
         mode: LaunchMode.externalApplication);
   }
 
-  Future<void> _buyNow(ProductDetail product) async {
-    if (await _addToCart(product) && mounted) {
-      context.push('/commande/paiement');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final detail = ref.watch(productProvider(widget.productId));
@@ -205,7 +200,6 @@ class _ProductScreenState extends ConsumerState<ProductScreen> {
                     }
                   },
                   onViewCart: () => context.go('/panier'),
-                  onSupport: () => _askSupport(product),
                 );
               }),
         body: SafeArea(
@@ -248,7 +242,7 @@ class _ProductScreenState extends ConsumerState<ProductScreen> {
                       },
                       onChoice: (group, choice) =>
                           setState(() => _choices[group] = choice),
-                      onBuyNow: () => _buyNow(product)),
+                      onSupport: () => _askSupport(product)),
                 ),
               ),
             ])));
@@ -268,7 +262,7 @@ class _ProductContent extends ConsumerStatefulWidget {
       required this.onAddon,
       required this.choices,
       required this.onChoice,
-      required this.onBuyNow});
+      required this.onSupport});
   final ProductDetail product;
   final String? variantId;
   final Set<String> addonIds;
@@ -278,16 +272,18 @@ class _ProductContent extends ConsumerStatefulWidget {
   /// Selected choice id per option group id.
   final Map<String, String> choices;
   final void Function(String groupId, String choiceId) onChoice;
-  final VoidCallback onBuyNow;
+  /// Opens WhatsApp about this product.
+  final VoidCallback onSupport;
 
   @override
   ConsumerState<_ProductContent> createState() => _ProductContentState();
 }
 
 class _ProductContentState extends ConsumerState<_ProductContent> {
-  final _reviewsKey = GlobalKey();
+  final _reviewsKey = GlobalKey<_FoldSectionState>();
 
   void _scrollToReviews() {
+    _reviewsKey.currentState?.open();
     final target = _reviewsKey.currentContext;
     if (target != null) {
       Scrollable.ensureVisible(target,
@@ -346,327 +342,363 @@ class _ProductContentState extends ConsumerState<_ProductContent> {
       for (final id in recentIds) ...all.where((p) => p.id == id),
     ];
 
-    return ListView(
-        padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
-        children: [
-          _Gallery(
-              productId: product.id,
-              categoryId: product.categoryId,
-              photos: photos),
-          // White sheet with rounded top corners, sliding over the photo
-          // area like the reference design.
-          Transform.translate(
-            offset: const Offset(0, -_sheetOverlap),
-            child: Container(
-              // Shadow only; the Material below paints the white surface so
-              // option tiles keep their ink effects.
-              decoration: const BoxDecoration(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                boxShadow: [
-                  BoxShadow(
-                      color: Color(0x140F173C),
-                      blurRadius: 12,
-                      offset: Offset(0, -4)),
-                ],
-              ),
-              child: Material(
-                color: AppColors.white,
-                shape: const RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(24))),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 0),
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Brand · category ............ ● En stock
-                        Row(children: [
-                          Expanded(
-                            child: Text(
-                                [product.brand, if (category != null) category]
-                                    .join(' · ')
-                                    .toUpperCase(),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                    color: AppColors.danger,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.4)),
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          _StockDot(inStock: inStock),
-                        ]),
-                        const SizedBox(height: AppSpacing.xs),
-                        if (product.badges.isNotEmpty) ...[
-                          Wrap(spacing: AppSpacing.xs, children: [
-                            for (final badge in product.badges)
-                              BadgeChip(kind: badge)
-                          ]),
-                          const SizedBox(height: AppSpacing.xs),
+    return ColoredBox(
+      color: AppColors.surfaceMuted,
+      child: ListView(
+          padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+          children: [
+            _Gallery(
+                productId: product.id,
+                categoryId: product.categoryId,
+                photos: photos),
+            // White sheet with rounded top corners, sliding over the grey
+            // photo area; the rails below sit on the same grey.
+            Transform.translate(
+              offset: const Offset(0, -_sheetOverlap),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      // Shadow only; the Material below paints the white
+                      // surface so option tiles keep their ink effects.
+                      decoration: const BoxDecoration(
+                        borderRadius:
+                            BorderRadius.vertical(top: Radius.circular(24)),
+                        boxShadow: [
+                          BoxShadow(
+                              color: Color(0x140F173C),
+                              blurRadius: 12,
+                              offset: Offset(0, -4)),
                         ],
-                        Text(product.name,
-                            style: const TextStyle(
-                                color: AppColors.text,
-                                fontSize: 22,
-                                height: 1.25,
-                                fontWeight: FontWeight.w800)),
-                        if (product.rating != null)
-                          InkWell(
-                            onTap: product.reviews.isEmpty
-                                ? null
-                                : _scrollToReviews,
-                            borderRadius: BorderRadius.circular(AppRadii.sm),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  vertical: AppSpacing.xs),
-                              child: Row(children: [
-                                const Icon(Icons.star,
-                                    size: 17, color: Color(0xFFEDA830)),
-                                const SizedBox(width: 4),
-                                Text('${product.rating}',
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w800)),
-                                Flexible(
-                                  child: Text(
-                                      ' · ${product.reviewCount ?? 0} avis clients',
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                          color: AppColors.textSecondary)),
-                                ),
-                                if (product.reviews.isNotEmpty)
-                                  const Icon(Icons.chevron_right,
-                                      size: 18, color: AppColors.textSecondary),
-                              ]),
-                            ),
-                          ),
-                        const SizedBox(height: AppSpacing.sm),
-                        // Price, then old price + discount pill.
-                        Text(formatXof(price),
-                            style: const TextStyle(
-                                color: AppColors.primary,
-                                fontSize: 26,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -.5)),
-                        if (discount > 0)
-                          Padding(
-                            padding: const EdgeInsets.only(top: AppSpacing.xs),
-                            child: Wrap(
-                              spacing: AppSpacing.sm,
-                              crossAxisAlignment: WrapCrossAlignment.center,
+                      ),
+                      child: Material(
+                        color: AppColors.white,
+                        shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.vertical(
+                                top: Radius.circular(24))),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(AppSpacing.lg,
+                              AppSpacing.lg, AppSpacing.lg, AppSpacing.sm),
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(formatXof(compareAt!),
-                                    style: const TextStyle(
-                                        color: AppColors.textSecondary,
-                                        fontSize: 14,
-                                        decoration:
-                                            TextDecoration.lineThrough)),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 7, vertical: 4),
-                                  decoration: BoxDecoration(
-                                      color: AppColors.dangerSoft,
-                                      borderRadius: BorderRadius.circular(5)),
-                                  child: Text('−$discount %',
-                                      style: const TextStyle(
-                                          color: AppColors.danger,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w800)),
-                                ),
-                              ],
-                            ),
-                          ),
-                        if (discount > 0)
-                          Padding(
-                            padding: const EdgeInsets.only(top: AppSpacing.xs),
-                            child: Text(
-                                'Vous économisez ${formatXof(compareAt! - price)}',
-                                style: AppText.caption.copyWith(
-                                    color: AppColors.success,
-                                    fontWeight: FontWeight.w700)),
-                          ),
-                        if (loyaltyPointsFor(price) > 0)
-                          Container(
-                            margin: const EdgeInsets.only(top: AppSpacing.sm),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.sm, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: AppColors.gold.withValues(alpha: 0.12),
-                              borderRadius:
-                                  BorderRadius.circular(AppRadii.pill),
-                            ),
-                            child: Row(mainAxisSize: MainAxisSize.min, children: [
-                              const Icon(Icons.stars_rounded,
-                                  size: 16, color: AppColors.gold),
-                              const SizedBox(width: 4),
-                              Flexible(child: Text(
-                                  '+${loyaltyPointsFor(price)} points LO+ avec cet achat',
-                                  style: AppText.caption.copyWith(
-                                      color: AppColors.text,
-                                      fontWeight: FontWeight.w700))),
-                            ]),
-                          ),
-                        const SizedBox(height: AppSpacing.md),
-                        // Benefits strip.
-                        const Wrap(
-                          spacing: AppSpacing.md,
-                          runSpacing: AppSpacing.xs,
-                          children: [
-                            _Benefit(Icons.local_shipping_outlined,
-                                'Livraison au Sénégal'),
-                            _Benefit(Icons.verified_user_outlined,
-                                'Garantie 12 mois'),
-                            _Benefit(Icons.phone_android,
-                                'Wave · Orange Money'),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpacing.lg),
-                        const Divider(height: 1, color: AppColors.border),
-                        const SizedBox(height: AppSpacing.lg),
-                        if (product.variants.isNotEmpty)
-                          _OptionGroup(
-                            title: 'Version',
-                            hint: selected?.label,
-                            children: [
-                              for (final item in product.variants)
-                                _OptionChip(
-                                  label: item.label,
-                                  extra: item.priceDeltaXof == null
-                                      ? null
-                                      : '+${formatXof(item.priceDeltaXof!)}',
-                                  selected: widget.variantId == item.id,
-                                  enabled: item.inStock,
-                                  onTap: () => widget.onVariant(item.id),
-                                ),
-                            ],
-                          ),
-                        for (final group in product.optionGroups)
-                          _OptionGroup(
-                            title: group.label,
-                            hint: group.choices
-                                .where((c) => c.id == widget.choices[group.id])
-                                .firstOrNull
-                                ?.label,
-                            children: [
-                              for (final choice in group.choices)
-                                _OptionChip(
-                                  label: choice.label,
-                                  extra: choice.priceDeltaXof == 0
-                                      ? null
-                                      : '${choice.priceDeltaXof > 0 ? '+' : '−'}${formatXof(choice.priceDeltaXof.abs())}',
-                                  selected:
-                                      widget.choices[group.id] == choice.id,
-                                  enabled: choice.inStock,
-                                  onTap: () =>
-                                      widget.onChoice(group.id, choice.id),
-                                ),
-                            ],
-                          ),
-                        if (product.addons.isNotEmpty)
-                          _OptionGroup(
-                            title: 'Complétez votre équipement',
-                            hint: 'Optionnel',
-                            children: [
-                              for (final item in product.addons)
-                                _OptionChip(
-                                  label: item.name,
-                                  extra: '+${formatXof(item.priceXof)}',
-                                  selected: widget.addonIds.contains(item.id),
-                                  enabled: true,
-                                  onTap: () => widget.onAddon(item.id),
-                                ),
-                            ],
-                          ),
-                        if (inStock)
-                          SizedBox(
-                            width: double.infinity,
-                            height: 48,
-                            child: OutlinedButton(
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.danger,
-                                side: const BorderSide(color: AppColors.danger),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8)),
-                              ),
-                              onPressed: widget.onBuyNow,
-                              child: const Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Flexible(
-                                      child: Text('Acheter maintenant',
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                              fontWeight: FontWeight.w800)),
-                                    ),
-                                    SizedBox(width: AppSpacing.sm),
-                                    Icon(Icons.arrow_forward, size: 18),
+                                // Brand · category ........ ● En stock
+                                Row(children: [
+                                  Expanded(
+                                    child: Text(
+                                        [
+                                          product.brand,
+                                          if (category != null) category
+                                        ].join(' · '),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppText.caption.copyWith(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600)),
+                                  ),
+                                  const SizedBox(width: AppSpacing.sm),
+                                  _StockDot(inStock: inStock),
+                                ]),
+                                const SizedBox(height: AppSpacing.xs),
+                                if (product.badges.isNotEmpty) ...[
+                                  Wrap(spacing: AppSpacing.xs, children: [
+                                    for (final badge in product.badges)
+                                      BadgeChip(kind: badge)
                                   ]),
-                            ),
-                          ),
-                        const SizedBox(height: AppSpacing.md),
-                        if (product.description != null)
-                          _DetailSection(
-                              title: 'Description',
-                              child: _ExpandableText(product.description!)),
-                        if (product.specifications.isNotEmpty)
-                          _DetailSection(
-                            title: 'Caractéristiques techniques',
-                            child: _SpecTable(product.specifications),
-                          ),
-                        const _DetailSection(
-                          title: 'Bon à savoir',
-                          child: _ServiceGrid(children: [
-                            _Service(
-                                Icons.local_shipping_outlined,
-                                'Livraison rapide',
-                                'À Dakar et partout au Sénégal'),
-                            _Service(
-                                Icons.verified_user_outlined,
-                                'Garantie 12 mois',
-                                'Un achat en toute sérénité'),
-                            _Service(Icons.replay, 'Retours faciles',
-                                '7 jours pour changer d’avis'),
-                            _Service(Icons.payments_outlined, 'Paiement',
-                                'À la livraison ou au retrait en showroom'),
-                          ]),
+                                  const SizedBox(height: AppSpacing.xs),
+                                ],
+                                Text(product.name,
+                                    style: const TextStyle(
+                                        color: AppColors.text,
+                                        fontSize: 22,
+                                        height: 1.25,
+                                        fontWeight: FontWeight.w700)),
+                                if (product.rating != null)
+                                  InkWell(
+                                    onTap: product.reviews.isEmpty
+                                        ? null
+                                        : _scrollToReviews,
+                                    borderRadius:
+                                        BorderRadius.circular(AppRadii.sm),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: AppSpacing.xs),
+                                      child: Row(children: [
+                                        const Icon(Icons.star,
+                                            size: 16, color: _reviewStar),
+                                        const SizedBox(width: 4),
+                                        Text('${product.rating}',
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w700)),
+                                        Flexible(
+                                          child: Text(
+                                              '  (${product.reviewCount ?? 0} avis)',
+                                              overflow: TextOverflow.ellipsis,
+                                              style: AppText.bodyMuted),
+                                        ),
+                                      ]),
+                                    ),
+                                  ),
+                                const SizedBox(height: AppSpacing.md),
+                                Text(formatXof(price),
+                                    style: const TextStyle(
+                                        color: AppColors.text,
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: -.5)),
+                                // Old price + discount: the page's only red.
+                                if (discount > 0)
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                        top: AppSpacing.xs),
+                                    child: Wrap(
+                                      spacing: AppSpacing.sm,
+                                      runSpacing: AppSpacing.xs,
+                                      crossAxisAlignment:
+                                          WrapCrossAlignment.center,
+                                      children: [
+                                        Text(formatXof(compareAt!),
+                                            style: const TextStyle(
+                                                color: AppColors.textSecondary,
+                                                fontSize: 14,
+                                                decoration: TextDecoration
+                                                    .lineThrough)),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 7, vertical: 3),
+                                          decoration: BoxDecoration(
+                                              color: AppColors.dangerSoft,
+                                              borderRadius:
+                                                  BorderRadius.circular(5)),
+                                          child: Text('−$discount %',
+                                              style: const TextStyle(
+                                                  color: AppColors.danger,
+                                                  fontSize: 12,
+                                                  fontWeight:
+                                                      FontWeight.w700)),
+                                        ),
+                                        Text(
+                                            'soit ${formatXof(compareAt - price)} d’économie',
+                                            style: AppText.caption),
+                                      ],
+                                    ),
+                                  ),
+                                if (loyaltyPointsFor(price) > 0)
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                        top: AppSpacing.sm),
+                                    child: Row(children: [
+                                      const Icon(Icons.stars_rounded,
+                                          size: 16, color: AppColors.gold),
+                                      const SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                            '+${loyaltyPointsFor(price)} points LO+ avec cet achat',
+                                            style: AppText.caption
+                                                .copyWith(fontSize: 13)),
+                                      ),
+                                    ]),
+                                  ),
+                                const SizedBox(height: AppSpacing.lg),
+                                const Divider(
+                                    height: 1, color: AppColors.border),
+                                const SizedBox(height: AppSpacing.lg),
+                                if (product.variants.isNotEmpty)
+                                  _OptionGroup(
+                                    title: 'Version',
+                                    hint: selected?.label,
+                                    children: [
+                                      for (final item in product.variants)
+                                        _OptionChip(
+                                          label: item.label,
+                                          extra: item.priceDeltaXof == null
+                                              ? null
+                                              : '+${formatXof(item.priceDeltaXof!)}',
+                                          selected: widget.variantId == item.id,
+                                          enabled: item.inStock,
+                                          onTap: () =>
+                                              widget.onVariant(item.id),
+                                        ),
+                                    ],
+                                  ),
+                                for (final group in product.optionGroups)
+                                  _OptionGroup(
+                                    title: group.label,
+                                    hint: group.choices
+                                        .where((c) =>
+                                            c.id == widget.choices[group.id])
+                                        .firstOrNull
+                                        ?.label,
+                                    children: [
+                                      for (final choice in group.choices)
+                                        _OptionChip(
+                                          label: choice.label,
+                                          extra: choice.priceDeltaXof == 0
+                                              ? null
+                                              : '${choice.priceDeltaXof > 0 ? '+' : '−'}${formatXof(choice.priceDeltaXof.abs())}',
+                                          selected: widget.choices[group.id] ==
+                                              choice.id,
+                                          enabled: choice.inStock,
+                                          onTap: () => widget.onChoice(
+                                              group.id, choice.id),
+                                        ),
+                                    ],
+                                  ),
+                                if (product.addons.isNotEmpty)
+                                  _OptionGroup(
+                                    title: 'Complétez votre équipement',
+                                    hint: 'Optionnel',
+                                    children: [
+                                      for (final item in product.addons)
+                                        _OptionChip(
+                                          label: item.name,
+                                          extra: '+${formatXof(item.priceXof)}',
+                                          selected: widget.addonIds
+                                              .contains(item.id),
+                                          enabled: true,
+                                          onTap: () => widget.onAddon(item.id),
+                                        ),
+                                    ],
+                                  ),
+                                const _ServiceBlock(),
+                                TextButton.icon(
+                                  style: TextButton.styleFrom(
+                                      foregroundColor: AppColors.primary,
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: AppSpacing.md)),
+                                  onPressed: widget.onSupport,
+                                  icon: const Icon(
+                                      Icons.chat_bubble_outline,
+                                      size: 18),
+                                  label: const Text(
+                                      'Une question ? Écrivez-nous sur WhatsApp',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w600)),
+                                ),
+                                if (product.description != null)
+                                  _FoldSection(
+                                      title: 'Description',
+                                      initiallyOpen: true,
+                                      child: _ExpandableText(
+                                          product.description!)),
+                                if (product.specifications.isNotEmpty)
+                                  _FoldSection(
+                                    title: 'Caractéristiques techniques',
+                                    count: product.specifications.length,
+                                    child: _SpecTable(product.specifications),
+                                  ),
+                                _FoldSection(
+                                  key: _reviewsKey,
+                                  title: 'Avis clients',
+                                  count: product.reviews.isEmpty
+                                      ? null
+                                      : product.reviewCount ??
+                                          product.reviews.length,
+                                  initiallyOpen: product.reviews.isEmpty,
+                                  child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        if (product.reviews.isEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                                bottom: AppSpacing.md),
+                                            child: Text(
+                                                'Aucun avis pour le moment. Soyez le premier à partager votre expérience.',
+                                                style: AppText.bodyMuted),
+                                          )
+                                        else ...[
+                                          _ReviewsTitle(
+                                              count: product.reviewCount ??
+                                                  product.reviews.length,
+                                              onSeeAll: () =>
+                                                  _showAllReviews(product)),
+                                          for (final review
+                                              in product.reviews.take(3))
+                                            _ReviewCard(review: review),
+                                          const SizedBox(
+                                              height: AppSpacing.sm),
+                                        ],
+                                        SizedBox(
+                                          width: double.infinity,
+                                          height: 44,
+                                          child: OutlinedButton.icon(
+                                            style: OutlinedButton.styleFrom(
+                                                foregroundColor:
+                                                    AppColors.primary,
+                                                side: const BorderSide(
+                                                    color: AppColors.primary),
+                                                shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            AppRadii.md))),
+                                            onPressed: () =>
+                                                _writeReview(product),
+                                            icon: const Icon(
+                                                Icons.rate_review_outlined,
+                                                size: 18),
+                                            label: const Text(
+                                                'Donner mon avis',
+                                                style: TextStyle(
+                                                    fontWeight:
+                                                        FontWeight.w700)),
+                                          ),
+                                        ),
+                                      ]),
+                                ),
+                              ]),
                         ),
-                        if (product.reviews.isNotEmpty)
-                          _DetailSection(
-                            key: _reviewsKey,
-                            title: 'Avis clients',
-                            action: product.reviews.length > 2
-                                ? ('Voir tout', () => _showAllReviews(product))
-                                : null,
-                            child: Column(children: [
-                              _ReviewsHeader(product: product),
-                              for (final review in product.reviews.take(2))
-                                _ReviewCard(review: review),
-                            ]),
-                          ),
-                      ]),
-                ),
-              ),
-            ),
-          ),
-          if (similar.isNotEmpty) ...[
-            const _RailTitle(title: 'Vous aimerez aussi'),
-            ProductRail(products: similar),
-          ],
-          if (recent.isNotEmpty) ...[
-            _RailTitle(
-              title: 'Consultés récemment',
-              arrow: false,
-              action: (
-                'Effacer',
-                () => ref.read(recentlyViewedProvider.notifier).state = [
-                      product.id
+                      ),
+                    ),
+                    if (similar.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      const _RailTitle(title: 'Vous aimerez aussi'),
+                      ProductRail(products: similar),
                     ],
-              ),
+                    if (recent.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      _RailTitle(
+                        title: 'Consultés récemment',
+                        arrow: false,
+                        action: (
+                          'Effacer',
+                          () => ref
+                              .read(recentlyViewedProvider.notifier)
+                              .state = [product.id],
+                        ),
+                      ),
+                      ProductRail(products: recent),
+                    ],
+                  ]),
             ),
-            ProductRail(products: recent),
-          ],
-        ]);
+          ]),
+    );
+  }
+
+  /// Review form; asks to sign in first, since reviews carry a name.
+  Future<void> _writeReview(ProductDetail product) async {
+    final user = ref.read(sessionUserProvider);
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Connectez-vous pour donner votre avis.'),
+        action: SnackBarAction(
+            label: 'Se connecter', onPressed: () => context.push('/connexion')),
+      ));
+      return;
+    }
+    final sent = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.white,
+      builder: (_) => _WriteReviewSheet(
+          productId: product.id, productName: product.name, author: user.name),
+    );
+    if (sent == true && mounted) {
+      ref.invalidate(productProvider(product.id));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Merci ! Votre avis est publié.')));
+    }
   }
 
   void _showAllReviews(ProductDetail product) {
@@ -760,37 +792,24 @@ class _SpecTableState extends State<_SpecTable> {
     final entries = widget.specs.entries.toList();
     final shown = _open ? entries : entries.take(_folded).toList();
     return Column(children: [
-      ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadii.md),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border.all(color: AppColors.border),
-            borderRadius: BorderRadius.circular(AppRadii.md),
-          ),
-          child: Column(children: [
-            for (var i = 0; i < shown.length; i++)
-              Container(
-                color: i.isEven ? AppColors.primarySoft : AppColors.white,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md, vertical: 10),
-                child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                          child:
-                              Text(shown[i].key, style: AppText.bodyMuted)),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: Text(shown[i].value,
-                            textAlign: TextAlign.right,
-                            style: AppText.body
-                                .copyWith(fontWeight: FontWeight.w700)),
-                      ),
-                    ]),
-              ),
+      // Plain rows separated by hairlines.
+      for (var i = 0; i < shown.length; i++)
+        Container(
+          decoration: i == 0
+              ? null
+              : const BoxDecoration(
+                  border: Border(top: BorderSide(color: AppColors.border))),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: Text(shown[i].key, style: AppText.bodyMuted)),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(shown[i].value,
+                  textAlign: TextAlign.right,
+                  style: AppText.body.copyWith(fontWeight: FontWeight.w600)),
+            ),
           ]),
         ),
-      ),
       if (entries.length > _folded)
         Align(
           alignment: Alignment.centerLeft,
@@ -811,35 +830,6 @@ class _SpecTableState extends State<_SpecTable> {
   }
 }
 
-/// "Bon à savoir" services, two per row.
-class _ServiceGrid extends StatelessWidget {
-  const _ServiceGrid({required this.children});
-  final List<Widget> children;
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-        builder: (context, constraints) {
-          final width = (constraints.maxWidth - AppSpacing.sm) / 2;
-          return Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              for (final child in children)
-                Container(
-                  width: width,
-                  padding: const EdgeInsets.all(AppSpacing.sm),
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    border: Border.all(color: AppColors.border),
-                    borderRadius: BorderRadius.circular(AppRadii.md),
-                  ),
-                  child: child,
-                ),
-            ],
-          );
-        },
-      );
-}
-
 class _StockDot extends StatelessWidget {
   const _StockDot({required this.inStock});
   final bool inStock;
@@ -857,25 +847,6 @@ class _StockDot extends StatelessWidget {
               color: color, fontSize: 12, fontWeight: FontWeight.w700)),
     ]);
   }
-}
-
-class _Benefit extends StatelessWidget {
-  const _Benefit(this.icon, this.label);
-  final IconData icon;
-  final String label;
-  @override
-  Widget build(BuildContext context) =>
-      Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 18, color: AppColors.primary),
-        const SizedBox(width: 5),
-        Flexible(
-          child: Text(label,
-              style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700)),
-        ),
-      ]);
 }
 
 /// "Title ......... hint" + a wrap of option chips.
@@ -967,26 +938,6 @@ class _OptionChip extends StatelessWidget {
       );
 }
 
-/// Section with a top rule, as in the mock-up (`.detail-section`).
-class _DetailSection extends StatelessWidget {
-  const _DetailSection(
-      {super.key, required this.title, required this.child, this.action});
-  final String title;
-  final Widget child;
-  final (String, VoidCallback)? action;
-  @override
-  Widget build(BuildContext context) => Container(
-        decoration: const BoxDecoration(
-            border: Border(top: BorderSide(color: AppColors.border))),
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _SectionHead(title: title, action: action, size: 16),
-          const SizedBox(height: AppSpacing.sm),
-          child,
-        ]),
-      );
-}
-
 /// "Title ............ Action →" (`.section-head`).
 class _SectionHead extends StatelessWidget {
   const _SectionHead(
@@ -1003,12 +954,12 @@ class _SectionHead extends StatelessWidget {
             child: Text(title,
                 style: TextStyle(
                     fontSize: size,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     letterSpacing: -.3))),
         if (action != null)
           TextButton(
             style: TextButton.styleFrom(
-                foregroundColor: AppColors.danger,
+                foregroundColor: AppColors.primary,
                 padding: const EdgeInsets.symmetric(horizontal: 4)),
             onPressed: action!.$2,
             child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1037,383 +988,331 @@ class _RailTitle extends StatelessWidget {
       );
 }
 
-class _Service extends StatelessWidget {
-  const _Service(this.icon, this.title, this.subtitle);
-  final IconData icon;
-  final String title;
-  final String subtitle;
+/// Delivery first (the concrete promise), then warranty, returns and
+/// payment as one quiet grey line each. Delays from the site's FAQ.
+class _ServiceBlock extends StatelessWidget {
+  const _ServiceBlock();
+
   @override
-  Widget build(BuildContext context) =>
-      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-              color: AppColors.primarySoft,
-              borderRadius: BorderRadius.circular(AppRadii.sm)),
-          child: Icon(icon, size: 19, color: AppColors.primary),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        Text(title, style: AppText.subtitle.copyWith(fontSize: 13.5)),
-        const SizedBox(height: 2),
-        Text(subtitle, style: AppText.caption),
-      ]);
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Padding(
+              padding: EdgeInsets.only(top: 1),
+              child: Icon(Icons.local_shipping_outlined,
+                  size: 20, color: AppColors.text),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text.rich(
+                      TextSpan(children: [
+                        const TextSpan(text: 'Livré sous '),
+                        const TextSpan(
+                            text: '24 h',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                        const TextSpan(text: ' à Dakar · 48 à 72 h ailleurs'),
+                      ]),
+                      style: AppText.body,
+                    ),
+                    Text('Retrait gratuit en showroom',
+                        style: AppText.caption.copyWith(
+                            color: AppColors.success,
+                            fontWeight: FontWeight.w600)),
+                  ]),
+            ),
+          ]),
+          const SizedBox(height: AppSpacing.md),
+          Text('Garantie 12 mois · Retour sous 7 jours',
+              style: AppText.bodyMuted.copyWith(fontSize: 13)),
+          const SizedBox(height: 2),
+          Text('Wave · Orange Money · paiement à la livraison',
+              style: AppText.bodyMuted.copyWith(fontSize: 13)),
+        ]),
+      );
 }
 
+/// Accordion section with a top rule: "Title (n) ............ ⌄".
+class _FoldSection extends StatefulWidget {
+  const _FoldSection(
+      {super.key,
+      required this.title,
+      this.count,
+      this.initiallyOpen = false,
+      required this.child});
+  final String title;
+  final int? count;
+  final bool initiallyOpen;
+  final Widget child;
+  @override
+  State<_FoldSection> createState() => _FoldSectionState();
+}
+
+class _FoldSectionState extends State<_FoldSection> {
+  late bool _open = widget.initiallyOpen;
+
+  void open() {
+    if (!_open) setState(() => _open = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = MediaQuery.of(context).disableAnimations
+        ? Duration.zero
+        : const Duration(milliseconds: 220);
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: AppColors.border))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Semantics(
+          button: true,
+          expanded: _open,
+          child: InkWell(
+            onTap: () => setState(() => _open = !_open),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Row(children: [
+                Expanded(
+                  child: Text(
+                      widget.count == null
+                          ? widget.title
+                          : '${widget.title} (${widget.count})',
+                      style: AppText.subtitle),
+                ),
+                AnimatedRotation(
+                  turns: _open ? .5 : 0,
+                  duration: duration,
+                  child: const Icon(Icons.expand_more,
+                      color: AppColors.textSecondary),
+                ),
+              ]),
+            ),
+          ),
+        ),
+        AnimatedSize(
+          duration: duration,
+          alignment: Alignment.topCenter,
+          child: _open
+              ? Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                  child: widget.child)
+              : const SizedBox(width: double.infinity),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Average, stars and how the shown reviews spread across 1–5 stars,
+/// computed from the real reviews only.
 class _ReviewsHeader extends StatelessWidget {
   const _ReviewsHeader({required this.product});
   final ProductDetail product;
 
   @override
   Widget build(BuildContext context) {
-    final avgRating = product.rating ?? 4.8;
-    final totalReviews = product.reviewCount ?? product.reviews.length;
-
-    return Container(
-      margin: const EdgeInsets.only(top: AppSpacing.md, bottom: AppSpacing.sm),
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(AppRadii.lg),
-        border: Border.all(color: AppColors.border.withValues(alpha: .7)),
-      ),
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Rating Badge
-              Column(
-                children: [
-                  Text(
-                    avgRating.toStringAsFixed(1),
-                    style: const TextStyle(
-                      fontSize: 34,
-                      fontWeight: FontWeight.w900,
-                      color: AppColors.text,
-                      height: 1.0,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (var i = 1; i <= 5; i++)
-                        Icon(
-                          i <= avgRating.round()
-                              ? Icons.star
-                              : Icons.star_border,
-                          size: 15,
-                          color: const Color(0xFFEDA830),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$totalReviews avis',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: AppSpacing.md),
-              // Vertical divider line
-              Container(
-                width: 1,
-                height: 56,
-                color: AppColors.border,
-              ),
-              const SizedBox(width: AppSpacing.md),
-              // Rating breakdown bars
-              const Expanded(
-                child: Column(
-                  children: [
-                    _RatingBarRow(stars: 5, pct: 0.85),
-                    _RatingBarRow(stars: 4, pct: 0.12),
-                    _RatingBarRow(stars: 3, pct: 0.03),
-                    _RatingBarRow(stars: 2, pct: 0.00),
-                    _RatingBarRow(stars: 1, pct: 0.00),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          const Divider(height: 1, color: AppColors.border),
-          const SizedBox(height: AppSpacing.xs),
-          const Row(
-            children: [
-              Icon(Icons.verified_user_outlined,
-                  size: 14, color: AppColors.success),
-              SizedBox(width: 5),
-              Expanded(
-                child: Text(
-                  '100% d\'avis authentiques d\'acheteurs vérifiés',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+    final reviews = product.reviews;
+    final average = product.rating ??
+        reviews.fold<double>(0, (sum, r) => sum + r.rating) / reviews.length;
+    final total = product.reviewCount ?? reviews.length;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Row(children: [
+        Column(children: [
+          Text(average.toStringAsFixed(1),
+              style: const TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.text,
+                  height: 1)),
+          const SizedBox(height: 4),
+          _Stars(rating: average, size: 14),
+          const SizedBox(height: 4),
+          Text('$total avis', style: AppText.caption),
+        ]),
+        const SizedBox(width: AppSpacing.xl),
+        Expanded(
+          child: Column(children: [
+            for (var stars = 5; stars >= 1; stars--)
+              _RatingBar(
+                  stars: stars,
+                  count:
+                      reviews.where((r) => r.rating.round() == stars).length,
+                  of: reviews.length),
+          ]),
+        ),
+      ]),
     );
   }
 }
 
-class _RatingBarRow extends StatelessWidget {
-  const _RatingBarRow({required this.stars, required this.pct});
+class _RatingBar extends StatelessWidget {
+  const _RatingBar({required this.stars, required this.count, required this.of});
   final int stars;
-  final double pct;
+  final int count;
+  final int of;
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 1.5),
-      child: Row(
-        children: [
-          Text(
-            '$stars★',
-            style: const TextStyle(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(width: 5),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(children: [
+          SizedBox(
+              width: 12,
+              child: Text('$stars',
+                  style: AppText.caption.copyWith(fontSize: 11))),
           Expanded(
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(AppRadii.pill),
               child: LinearProgressIndicator(
-                value: pct,
+                value: of == 0 ? 0 : count / of,
                 minHeight: 5,
-                backgroundColor: const Color(0xFFE2E8F0),
-                color: const Color(0xFFEDA830),
+                backgroundColor: _reviewAvatarBg,
+                color: _reviewStar,
               ),
             ),
           ),
-          const SizedBox(width: 5),
           SizedBox(
-            width: 26,
-            child: Text(
-              '${(pct * 100).round()}%',
-              textAlign: TextAlign.right,
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+              width: 22,
+              child: Text('$count',
+                  textAlign: TextAlign.right,
+                  style: AppText.caption.copyWith(fontSize: 11))),
+        ]),
+      );
 }
 
-class _ReviewCard extends StatefulWidget {
+class _Stars extends StatelessWidget {
+  const _Stars({required this.rating, required this.size});
+  final num rating;
+  final double size;
+  @override
+  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
+        for (var i = 1; i <= 5; i++)
+          Icon(i <= rating.round() ? Icons.star : Icons.star_border,
+              size: size, color: _reviewStar),
+      ]);
+}
+
+/// Review colours taken from the reference design: red stars, purple-grey
+/// secondary text, light grey avatar.
+const _reviewStar = Color(0xFFF5414B);
+const _reviewMuted = Color(0xFF9A98AA);
+const _reviewAvatarBg = Color(0xFFE9E9F0);
+const _reviewAvatarIcon = Color(0xFFB4B3C2);
+
+/// "Avis 235 ............ Tout voir >"
+class _ReviewsTitle extends StatelessWidget {
+  const _ReviewsTitle({required this.count, this.onSeeAll});
+  final int count;
+  final VoidCallback? onSeeAll;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+        child: Row(children: [
+          Expanded(
+            child: Text.rich(TextSpan(children: [
+              const TextSpan(
+                  text: 'Avis ',
+                  style: TextStyle(
+                      color: AppColors.text,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800)),
+              TextSpan(
+                  text: '$count',
+                  style: const TextStyle(
+                      color: _reviewMuted,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600)),
+            ])),
+          ),
+          if (onSeeAll != null)
+            InkWell(
+              onTap: onSeeAll,
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text('Tout voir',
+                      style: TextStyle(color: AppColors.text, fontSize: 16)),
+                  SizedBox(width: 4),
+                  Icon(Icons.chevron_right, size: 22, color: _reviewMuted),
+                ]),
+              ),
+            ),
+        ]),
+      );
+}
+
+class _ReviewCard extends StatelessWidget {
   const _ReviewCard({required this.review});
   final ProductReview review;
 
   @override
-  State<_ReviewCard> createState() => _ReviewCardState();
-}
-
-class _ReviewCardState extends State<_ReviewCard> {
-  bool _liked = false;
-  int _likesCount = 4;
-
-  static const List<List<Color>> _avatarGradients = [
-    [Color(0xFF4A00E0), Color(0xFF8E2DE2)],
-    [Color(0xFF00B4DB), Color(0xFF0083B0)],
-    [Color(0xFF11998E), Color(0xFF38EF7D)],
-    [Color(0xFFFF416C), Color(0xFFFF4B2B)],
-    [Color(0xFFF7971E), Color(0xFFFFD200)],
-  ];
-
-  List<Color> _getGradient(String name) {
-    final hash = name.hashCode.abs();
-    return _avatarGradients[hash % _avatarGradients.length];
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final review = widget.review;
-    final gradient = _getGradient(review.author);
-
     return Container(
-      margin: const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.xs),
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(AppRadii.lg),
-        border: Border.all(color: AppColors.border),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x08000000),
-            blurRadius: 8,
-            offset: Offset(0, 2),
+      decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: AppColors.border))),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: const BoxDecoration(
+                color: _reviewAvatarBg, shape: BoxShape.circle),
+            child: const Icon(Icons.person, size: 24, color: _reviewAvatarIcon),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: gradient,
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  review.author.isEmpty ? '?' : review.author[0].toUpperCase(),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(review.author,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                  ),
+                      color: AppColors.text,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w500)),
+              const SizedBox(height: 2),
+              Row(children: [
+                Flexible(
+                  child: Text(
+                      review.verified ? 'Achat vérifié' : 'Client LO Multimédia',
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          const TextStyle(color: _reviewMuted, fontSize: 14)),
                 ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            review.author,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 13.5,
-                              color: AppColors.text,
-                            ),
-                          ),
-                        ),
-                        if (review.verified) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.success.withValues(alpha: .12),
-                              borderRadius:
-                                  BorderRadius.circular(AppRadii.pill),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.check_circle_rounded,
-                                    size: 11, color: AppColors.success),
-                                SizedBox(width: 3),
-                                Text(
-                                  'Achat vérifié',
-                                  style: TextStyle(
-                                    color: AppColors.success,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        for (var k = 1; k <= 5; k++)
-                          Icon(
-                            k <= review.rating.round()
-                                ? Icons.star
-                                : Icons.star_border,
-                            size: 13,
-                            color: const Color(0xFFEDA830),
-                          ),
-                        const SizedBox(width: 6),
-                        const Text(
-                          'Avis certifié',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 10.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+                if (review.verified) ...[
+                  const SizedBox(width: 4),
+                  const Icon(Icons.check_circle,
+                      size: 15, color: AppColors.success),
+                ],
+              ]),
+            ]),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Plus d’options',
+            icon: const Icon(Icons.more_vert, color: _reviewMuted),
+            onSelected: (_) => ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Merci, cet avis a été signalé.'))),
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'report', child: Text('Signaler cet avis')),
             ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            review.comment,
+        ]),
+        const SizedBox(height: AppSpacing.md),
+        Row(children: [
+          for (var i = 1; i <= 5; i++)
+            Icon(i <= review.rating.round() ? Icons.star : Icons.star_border,
+                size: 20, color: _reviewStar),
+        ]),
+        const SizedBox(height: AppSpacing.sm),
+        Text(review.comment,
             style: const TextStyle(
-              color: Color(0xFF334155),
-              fontSize: 13,
-              height: 1.45,
-              fontWeight: FontWeight.w400,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
-          const SizedBox(height: AppSpacing.xs),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(AppRadii.pill),
-              onTap: () {
-                setState(() {
-                  _liked = !_liked;
-                  _likesCount += _liked ? 1 : -1;
-                });
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _liked ? Icons.thumb_up : Icons.thumb_up_outlined,
-                      size: 14,
-                      color:
-                          _liked ? AppColors.primary : AppColors.textSecondary,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Utile ($_likesCount)',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: _liked ? FontWeight.w800 : FontWeight.w600,
-                        color: _liked
-                            ? AppColors.primary
-                            : AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+                color: AppColors.text, fontSize: 15, height: 1.4)),
+      ]),
     );
   }
 }
@@ -1427,7 +1326,7 @@ const shopUrl = 'https://lomultimedia.com';
 /// WhatsApp number of the shop (same as the site's contact page).
 const supportWhatsApp = '221779980404';
 
-/// Sticky bottom bar. Before adding: total + "Ajouter au panier". Once in
+/// Sticky bottom bar. Before adding: price + "Ajouter au panier". Once in
 /// the cart: "− n +" (changes the cart quantity) + "Voir le panier".
 class _BuyBar extends StatelessWidget {
   const _BuyBar(
@@ -1438,8 +1337,7 @@ class _BuyBar extends StatelessWidget {
       required this.onIncrement,
       required this.onDecrement,
       required this.onAdd,
-      required this.onViewCart,
-      required this.onSupport});
+      required this.onViewCart});
 
   /// Quantity in the cart, or null when not added yet.
   final int? inCartQuantity;
@@ -1450,12 +1348,15 @@ class _BuyBar extends StatelessWidget {
   final VoidCallback? onDecrement;
   final VoidCallback onAdd;
   final VoidCallback onViewCart;
-  final VoidCallback onSupport;
+
+  static const _label = TextStyle(fontSize: 15, fontWeight: FontWeight.w700);
 
   @override
   Widget build(BuildContext context) {
     final added = inCartQuantity != null;
     final quantity = inCartQuantity ?? 0;
+    final buttonShape =
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadii.md));
     return Material(
       color: AppColors.white,
       // Thin top border: separates the bar from the scrolling content.
@@ -1470,7 +1371,7 @@ class _BuyBar extends StatelessWidget {
               if (added) ...[
                 // Shown only once the product is in the cart.
                 const Text('Dans le panier',
-                    style: TextStyle(fontWeight: FontWeight.w700)),
+                    style: TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(width: AppSpacing.sm),
                 StepperButton.minus(
                     tooltip: quantity > 1
@@ -1484,7 +1385,7 @@ class _BuyBar extends StatelessWidget {
                   child: ExcludeSemantics(
                     child: Text('$quantity',
                         style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w800)),
+                            fontSize: 16, fontWeight: FontWeight.w700)),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
@@ -1501,9 +1402,7 @@ class _BuyBar extends StatelessWidget {
                         ? CrossAxisAlignment.end
                         : CrossAxisAlignment.start,
                     children: [
-                      Text(added ? 'Total' : 'Prix',
-                          style: const TextStyle(
-                              color: AppColors.textSecondary, fontSize: 12)),
+                      Text(added ? 'Total' : 'Prix', style: AppText.caption),
                       FittedBox(
                         fit: BoxFit.scaleDown,
                         alignment: added
@@ -1511,51 +1410,50 @@ class _BuyBar extends StatelessWidget {
                             : Alignment.centerLeft,
                         child: Text(formatXof(totalXof),
                             style: const TextStyle(
-                                color: AppColors.danger,
+                                color: AppColors.text,
                                 fontSize: 18,
                                 fontWeight: FontWeight.w800)),
                       ),
                     ]),
               ),
             ]),
-            const SizedBox(height: AppSpacing.xs),
-            Row(children: [
-              Expanded(
-                child: SizedBox(
-                  height: 48,
-                  child: added
-                      ? OutlinedButton.icon(
+            const SizedBox(height: AppSpacing.sm),
+            SizedBox(
+              height: 48,
+              child: added
+                  ? SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(shape: buttonShape),
                           onPressed: onViewCart,
                           icon: const Icon(Icons.shopping_cart_checkout),
-                          label: const FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text('Voir le panier',
-                                style: TextStyle(
-                                    fontSize: 16, fontWeight: FontWeight.w800)),
-                          ))
-                      : ElevatedButton.icon(
-                          onPressed: inStock ? onAdd : null,
-                          icon: const Icon(Icons.add_shopping_cart),
-                          label: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                                inStock
-                                    ? 'Ajouter au panier'
-                                    : 'Rupture de stock',
-                                style: const TextStyle(
-                                    fontSize: 16, fontWeight: FontWeight.w800)),
-                          )),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              SizedBox.square(
-                dimension: 48,
-                child: IconButton.filledTonal(
-                    tooltip: 'Une question ? Écrivez-nous sur WhatsApp',
-                    onPressed: onSupport,
-                    icon: const Icon(Icons.support_agent)),
-              ),
-            ]),
+                          label: const Text('Voir le panier', style: _label)),
+                    )
+                  : !inStock
+                      ? SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                              style:
+                                  ElevatedButton.styleFrom(shape: buttonShape),
+                              onPressed: null,
+                              child: const Text('Rupture de stock',
+                                  style: _label)),
+                        )
+                      : SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                              key: buyBarAddKey,
+                              style:
+                                  ElevatedButton.styleFrom(shape: buttonShape),
+                              onPressed: onAdd,
+                              icon: const Icon(Icons.add_shopping_cart,
+                                  size: 20),
+                              label: const FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text('Ajouter au panier',
+                                      style: _label))),
+                        ),
+            ),
           ]),
         ),
       ),
@@ -1563,8 +1461,11 @@ class _BuyBar extends StatelessWidget {
   }
 }
 
-/// Photo gallery: swipe between photos, thumbnails, heart on the photo,
-/// tap to open full screen with pinch-to-zoom.
+/// "Ajouter" button of the buy bar (product cards below also say "Ajouter").
+const buyBarAddKey = Key('buy-bar-add');
+
+/// Photo gallery on a grey band: swipe between photos, dots + counter,
+/// heart on the photo, tap to open full screen with pinch-to-zoom.
 class _Gallery extends ConsumerStatefulWidget {
   const _Gallery(
       {required this.productId,
@@ -1602,104 +1503,97 @@ class _GalleryState extends ConsumerState<_Gallery> {
   Widget build(BuildContext context) {
     final photos = widget.photos;
     final height = (MediaQuery.sizeOf(context).width * 0.8).clamp(240.0, 440.0);
-    return Container(
-      color: AppColors.white,
-      child: Column(children: [
-        SizedBox(
-          height: height,
-          child: Stack(children: [
-            Positioned.fill(
-              child: photos.isEmpty
-                  ? ProductImage(
-                      url: null, categoryId: widget.categoryId, iconSize: 72)
-                  : PageView.builder(
-                      controller: _pages,
-                      itemCount: photos.length,
-                      onPageChanged: (i) => setState(() => _index = i),
-                      itemBuilder: (context, i) => GestureDetector(
-                        onTap: _openFullScreen,
-                        child: Semantics(
-                          label:
-                              'Photo ${i + 1} sur ${photos.length}, toucher pour agrandir',
-                          image: true,
-                          child: Padding(
-                            padding: const EdgeInsets.all(AppSpacing.lg),
-                            child: ProductImage(
-                                url: photos[i],
-                                categoryId: widget.categoryId,
-                                iconSize: 72,
-                                fit: BoxFit.contain),
-                          ),
+    return Column(children: [
+      SizedBox(
+        height: height,
+        child: Stack(children: [
+          Positioned.fill(
+            child: photos.isEmpty
+                ? ProductImage(
+                    url: null, categoryId: widget.categoryId, iconSize: 72)
+                : PageView.builder(
+                    controller: _pages,
+                    itemCount: photos.length,
+                    onPageChanged: (i) => setState(() => _index = i),
+                    itemBuilder: (context, i) => GestureDetector(
+                      onTap: _openFullScreen,
+                      child: Semantics(
+                        label:
+                            'Photo ${i + 1} sur ${photos.length}, toucher pour agrandir',
+                        image: true,
+                        child: Padding(
+                          padding: const EdgeInsets.all(AppSpacing.xl),
+                          child: ProductImage(
+                              url: photos[i],
+                              categoryId: widget.categoryId,
+                              iconSize: 72,
+                              fit: BoxFit.contain),
                         ),
                       ),
                     ),
-            ),
+                  ),
+          ),
+          if (photos.length > 1)
             Positioned(
-              top: AppSpacing.sm,
-              right: AppSpacing.sm,
-              child: DecoratedBox(
-                decoration: const BoxDecoration(
-                  color: AppColors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                        color: Color(0x290F173C),
-                        blurRadius: 8,
-                        offset: Offset(0, 2)),
-                  ],
-                ),
-                child: FavoriteButton(productId: widget.productId, size: 22),
+              top: AppSpacing.md,
+              left: AppSpacing.md,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(AppRadii.pill)),
+                child: Text('${_index + 1}/${photos.length}',
+                    style: AppText.caption.copyWith(
+                        color: AppColors.text, fontWeight: FontWeight.w600)),
               ),
             ),
-          ]),
-        ),
-        if (photos.length > 1)
-          Padding(
-            // Bottom room for the content sheet that overlaps this area.
-            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm,
-                AppSpacing.lg, AppSpacing.lg + _sheetOverlap),
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              spacing: AppSpacing.md,
-              runSpacing: AppSpacing.sm,
-              children: [
+          Positioned(
+            top: AppSpacing.sm,
+            right: AppSpacing.sm,
+            child: DecoratedBox(
+              decoration: const BoxDecoration(
+                color: AppColors.white,
+                shape: BoxShape.circle,
+              ),
+              child: FavoriteButton(productId: widget.productId, size: 22),
+            ),
+          ),
+        ]),
+      ),
+      // Dots, plus bottom room for the sheet that overlaps this area.
+      Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.md + _sheetOverlap),
+        child: photos.length > 1
+            ? Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 for (var i = 0; i < photos.length; i++)
                   Semantics(
                     button: true,
                     selected: i == _index,
                     label: 'Afficher la photo ${i + 1}',
                     child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
                       onTap: () => _go(i),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        width: 88,
-                        height: 88,
-                        decoration: BoxDecoration(
-                          color: AppColors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                              color: i == _index
-                                  ? AppColors.primary
-                                  : AppColors.border,
-                              width: i == _index ? 2 : 1),
+                      child: Padding(
+                        padding: const EdgeInsets.all(5),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          width: i == _index ? 18 : 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: i == _index
+                                ? AppColors.text
+                                : AppColors.textSecondary
+                                    .withValues(alpha: .35),
+                            borderRadius: BorderRadius.circular(AppRadii.pill),
+                          ),
                         ),
-                        clipBehavior: Clip.antiAlias,
-                        padding: const EdgeInsets.all(6),
-                        child: ProductImage(
-                            url: photos[i],
-                            categoryId: widget.categoryId,
-                            iconSize: 24,
-                            fit: BoxFit.contain),
                       ),
                     ),
                   ),
-              ],
-            ),
-          )
-        else
-          const SizedBox(height: _sheetOverlap),
-      ]),
-    );
+              ])
+            : const SizedBox.shrink(),
+      ),
+    ]);
   }
 }
 
@@ -1726,6 +1620,126 @@ class _FullScreenPhotos extends StatelessWidget {
             child: Center(
                 child: ProductImage(url: photos[i], fit: BoxFit.contain)),
           ),
+        ),
+      );
+}
+
+/// "Donner mon avis": 1–5 stars and a comment.
+class _WriteReviewSheet extends ConsumerStatefulWidget {
+  const _WriteReviewSheet(
+      {required this.productId,
+      required this.productName,
+      required this.author});
+  final String productId;
+  final String productName;
+  final String author;
+  @override
+  ConsumerState<_WriteReviewSheet> createState() => _WriteReviewSheetState();
+}
+
+class _WriteReviewSheetState extends ConsumerState<_WriteReviewSheet> {
+  static const _labels = ['Décevant', 'Moyen', 'Correct', 'Bien', 'Excellent'];
+  static const _minLength = 10;
+  final _comment = TextEditingController();
+  int _rating = 0;
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _comment.dispose();
+    super.dispose();
+  }
+
+  bool get _valid => _rating > 0 && _comment.text.trim().length >= _minLength;
+
+  Future<void> _send() async {
+    setState(() => _sending = true);
+    try {
+      await ref.read(catalogRepositoryProvider).submitReview(widget.productId,
+          author: widget.author,
+          rating: _rating,
+          comment: _comment.text.trim());
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("Impossible d'envoyer votre avis. Réessayez.")));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg,
+            AppSpacing.lg + MediaQuery.viewInsetsOf(context).bottom),
+        child: SafeArea(
+          top: false,
+          child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Votre avis', style: AppText.title),
+                const SizedBox(height: 2),
+                Text(widget.productName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.bodyMuted),
+                const SizedBox(height: AppSpacing.lg),
+                Row(children: [
+                  for (var i = 1; i <= 5; i++)
+                    IconButton(
+                      tooltip: '$i étoile${i > 1 ? 's' : ''}',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => setState(() => _rating = i),
+                      icon: Icon(i <= _rating ? Icons.star : Icons.star_border,
+                          size: 34,
+                          color: i <= _rating
+                              ? _reviewStar
+                              : AppColors.textSecondary),
+                    ),
+                  const SizedBox(width: AppSpacing.sm),
+                  if (_rating > 0)
+                    Text(_labels[_rating - 1], style: AppText.subtitle),
+                ]),
+                const SizedBox(height: AppSpacing.md),
+                TextField(
+                  controller: _comment,
+                  minLines: 3,
+                  maxLines: 6,
+                  maxLength: 500,
+                  textCapitalization: TextCapitalization.sentences,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    labelText: 'Votre commentaire',
+                    hintText: 'Qualité, livraison, utilisation au quotidien…',
+                    helperText: 'Au moins $_minLength caractères',
+                    alignLabelWithHint: true,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadii.md)),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text('Publié sous le nom ${widget.author}',
+                    style: AppText.caption),
+                const SizedBox(height: AppSpacing.md),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppRadii.md))),
+                    onPressed: _valid && !_sending ? _send : null,
+                    child: _sending
+                        ? const SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Publier mon avis',
+                            style: TextStyle(
+                                fontSize: 15, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ]),
         ),
       );
 }

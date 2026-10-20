@@ -6,6 +6,7 @@ import '../contracts/home.dart';
 import '../features/home/home_providers.dart';
 import '../theme/tokens.dart';
 import '../widgets/app_header.dart';
+import '../widgets/card_faces.dart' show GiftCardFace;
 import 'boutique_screen.dart'
     show CatalogSort, shopOpenedFromHomeProvider, shopSortRequestProvider;
 import '../features/catalog/shop_filters.dart';
@@ -242,6 +243,8 @@ class _HomeContentView extends ConsumerWidget {
           ...content.recommendedProducts,
         ]),
         const SizedBox(height: AppSpacing.lg),
+        const _GiftCardPromo(),
+        const SizedBox(height: AppSpacing.lg),
         const SectionHeader(title: 'Services'),
         const SizedBox(height: AppSpacing.sm),
         Padding(
@@ -271,6 +274,103 @@ class _HomeContentView extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Home entry point to buy a gift card for someone else.
+class _GiftCardPromo extends StatelessWidget {
+  const _GiftCardPromo();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      child: Material(
+        color: AppColors.primarySoft,
+        borderRadius: BorderRadius.circular(AppRadii.xl),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => context.push('/carte-cadeau'),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, AppSpacing.lg, AppSpacing.md, AppSpacing.lg),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Offrez le choix',
+                          style: TextStyle(
+                              color: AppColors.text,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 4),
+                      const Text(
+                          'La carte cadeau LO Multimédia, de 5 000 à 1 000 000 FCFA.',
+                          style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12.5,
+                              height: 1.35)),
+                      const SizedBox(height: AppSpacing.md),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(AppRadii.pill),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.card_giftcard,
+                                color: Colors.white, size: 16),
+                            SizedBox(width: 6),
+                            Text('Offrir maintenant',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                SizedBox(
+                  width: 128,
+                  height: 112,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: Transform.rotate(
+                          angle: 0.16,
+                          child: const GiftCardFace(
+                              amountXof: 100000, maxWidth: 104),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        child: Transform.rotate(
+                          angle: -0.1,
+                          child: const GiftCardFace(
+                              amountXof: 25000, maxWidth: 104),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

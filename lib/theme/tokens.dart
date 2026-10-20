@@ -27,6 +27,10 @@ class AppColors {
   // Gris perle légèrement bleuté : les cartes blanches s'en détachent mieux.
   static const background = Color(0xFFFFFFFF);
   static const white = Colors.white; // --blanc
+
+  /// Light grey behind product photos and secondary bands, so white sheets
+  /// and cards stand out from it.
+  static const surfaceMuted = Color(0xFFF4F5F7);
 }
 
 class AppRadii {
@@ -55,12 +59,17 @@ class AppSpacing {
 class AppText {
   AppText._();
 
+  static const pageTitle = TextStyle(
+      fontSize: 20,
+      fontWeight: FontWeight.w800,
+      color: AppColors.primaryDark,
+      height: 1.25);
   static const display = TextStyle(
       fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.text, height: 1.2);
   static const title = TextStyle(
       fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.text, height: 1.25);
   static const section = TextStyle(
-      fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.text);
+      fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.primaryDark);
   static const subtitle = TextStyle(
       fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text);
   static const body = TextStyle(fontSize: 14, color: AppColors.text, height: 1.45);

@@ -420,6 +420,22 @@ class MockHttpClient extends http.BaseClient {
       return _json(request, 200, {'data': _cart()});
     }
 
+    final reviewRoute =
+        RegExp(r'^/api/v1/products/([^/]+)/reviews$').firstMatch(path);
+    if (request.method == 'POST' && reviewRoute != null) {
+      final body = jsonDecode(bodyText) as Map<String, dynamic>;
+      final productId = reviewRoute.group(1)!;
+      final review = {
+        'id': '$productId-user-${DateTime.now().millisecondsSinceEpoch}',
+        'author': body['author'],
+        'rating': body['rating'],
+        'comment': body['comment'],
+        'verified': false,
+      };
+      (_userReviews[productId] ??= []).insert(0, review);
+      return _json(request, 201, {'data': review});
+    }
+
     if (request.method == 'GET' && path.startsWith('/api/v1/products/')) {
       final id = path.substring('/api/v1/products/'.length);
       final matches = mockProducts.where((product) => product['id'] == id);
@@ -443,6 +459,7 @@ class MockHttpClient extends http.BaseClient {
           'optionGroups': optionGroupsFor(id),
           'addons': accessoriesFor(id),
           'reviews': [
+            ...?_userReviews[id],
             {
               'id': '${id}-review-1',
               'author': 'Aissatou D.',
@@ -531,6 +548,9 @@ class MockHttpClient extends http.BaseClient {
   Future<void> _saveCart() =>
       persistence?.write('mock_cart_items', jsonEncode(_cartItems)) ??
       Future<void>.value();
+
+  /// Reviews posted from the app, newest first, per product id.
+  final Map<String, List<Map<String, dynamic>>> _userReviews = {};
 
   Future<void> _saveMemberState() =>
       persistence?.write(

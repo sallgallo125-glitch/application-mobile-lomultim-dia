@@ -14,7 +14,9 @@ final httpClientProvider = Provider<http.Client>(
     (ref) => MockHttpClient(persistence: ref.watch(localPersistenceProvider)));
 
 final apiClientProvider = Provider<ApiClient>((ref) {
-  return ApiClient(client: ref.watch(httpClientProvider));
+  return ApiClient(
+      client: ref.watch(httpClientProvider),
+      cache: ref.watch(localPersistenceProvider));
 });
 
 final homeRepositoryProvider = Provider<HomeRepository>((ref) {
@@ -22,7 +24,9 @@ final homeRepositoryProvider = Provider<HomeRepository>((ref) {
 });
 
 final homeContentProvider = FutureProvider<HomeContent>((ref) {
-  return ref.watch(homeRepositoryProvider).getHomeContent();
+  return ref
+      .watch(homeRepositoryProvider)
+      .getHomeContent(onRefreshed: ref.invalidateSelf);
 });
 
 final globalSearchQueryProvider = StateProvider<String>((ref) => '');

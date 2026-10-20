@@ -319,6 +319,11 @@ class MyGiftCardsScreen extends ConsumerWidget {
             ErrorState(onRetry: () => ref.invalidate(myGiftCardsProvider)),
         data: (items) =>
             ListView(padding: const EdgeInsets.all(AppSpacing.lg), children: [
+          OutlinedButton.icon(
+              onPressed: () => context.push('/carte-cadeau'),
+              icon: const Icon(Icons.card_giftcard),
+              label: const Text('Offrir une carte cadeau')),
+          const SizedBox(height: AppSpacing.md),
           if (items.isEmpty)
             const Padding(
                 padding: EdgeInsets.only(bottom: AppSpacing.md),
@@ -388,10 +393,6 @@ class MyGiftCardsScreen extends ConsumerWidget {
                     ]),
               ),
             ),
-          OutlinedButton.icon(
-              onPressed: () => context.push('/carte-cadeau'),
-              icon: const Icon(Icons.card_giftcard),
-              label: const Text('Offrir une carte cadeau')),
         ]),
       ),
     );

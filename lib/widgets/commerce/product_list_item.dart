@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../contracts/product.dart';
+import '../../features/catalog/catalog_providers.dart';
 import '../../theme/tokens.dart';
 import '../badge_chip.dart';
 import '../price_text.dart';
@@ -20,6 +21,9 @@ class ProductListItem extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(AppRadii.lg),
           onTap: onPressed == null ? null : () => onPressed!(product),
+          onTapDown: onPressed == null
+              ? null
+              : (_) => prefetchProduct(context, product.id),
           child: Container(
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(

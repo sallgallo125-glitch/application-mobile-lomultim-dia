@@ -21,6 +21,7 @@ import '../screens/loyalty_screen.dart';
 import '../screens/order_detail_screen.dart';
 import '../screens/orders_screen.dart';
 import '../screens/product_screen.dart';
+import '../screens/profile_info_screen.dart';
 import '../screens/gift_card_screens.dart';
 import '../screens/info_screens.dart';
 import '../screens/loyalty_member_screens.dart';
@@ -139,6 +140,10 @@ final GoRouter appRouter = GoRouter(
         path: '/lo/parrainage',
         parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const LoyaltyReferralScreen()),
+    GoRoute(
+        path: '/compte/infos',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => const ProfileInfoScreen()),
     GoRoute(
         path: '/carte-cadeau',
         parentNavigatorKey: rootNavigatorKey,

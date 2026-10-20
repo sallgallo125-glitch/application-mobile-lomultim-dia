@@ -20,7 +20,7 @@ class SectionHeader extends StatelessWidget {
           Flexible(
             child: Text(
             title,
-            style: const TextStyle(color: AppColors.primary, fontSize: 20, fontWeight: FontWeight.w900, height: 1.2),
+              style: AppText.section,
           )),
           const SizedBox(width: AppSpacing.sm),
           if (actionLabel != null && onActionPressed != null)

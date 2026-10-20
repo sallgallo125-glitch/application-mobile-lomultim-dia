@@ -76,3 +76,10 @@ flutter test
   `flutter analyze` before assuming anything beyond "it reads like valid
   Dart" — package API surfaces (`go_router`, `flutter_riverpod`) can drift
   between versions in ways static reading won't catch.
+
+
+
+
+
+
+

@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,7 +7,6 @@ import '../features/account/account_providers.dart';
 import '../features/customer/customer_providers.dart';
 import '../theme/redesign_fonts.dart';
 import '../theme/tokens.dart';
-import '../utils/currency.dart';
 import '../utils/loyalty.dart';
 import '../widgets/commerce/product_image.dart';
 import '../widgets/error_state.dart';
@@ -20,11 +17,17 @@ import '../widgets/nav_clearance.dart';
 /// Pale blue-grey page background; the white groups sit on it.
 const _mist = Color(0xFFF1F3F9);
 
-/// Light text on the blue band (contrast > 7:1 on primaryDark).
-const _onBand = Color(0xFFDDE2F5);
+/// Icon tile behind the shortcuts and the order stages.
+const _tileFill = Color(0x80F1F3F9);
 
-/// 1 LO+ point = 100 F in store.
-const _pointValueXof = 100;
+/// Secondary text: darker than the shared grey for small sizes (6:1 on white).
+const _grey = Color(0xFF566073);
+
+/// Chevrons and empty-avatar icon (3.6:1 on white).
+const _chevron = Color(0xFF7B8794);
+
+/// Secondary text on the white band.
+const _onBand = _grey;
 
 class AccountScreen extends ConsumerWidget {
   const AccountScreen({super.key});
@@ -32,17 +35,17 @@ class AccountScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final signedIn = ref.watch(signedInProvider);
     final summary = ref.watch(accountSummaryProvider);
-    // The blue band runs up under the status bar and carries the bell
+    // The white band runs up under the status bar and carries the bell
     // (the cart is already in the bottom bar).
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: SystemUiOverlayStyle.dark,
       child: Scaffold(
-        backgroundColor: AppColors.primaryDark,
+        backgroundColor: AppColors.white,
         body: RedesignFonts(
             child: SafeArea(
           bottom: false,
           child: ColoredBox(
-            color: _mist,
+            color: AppColors.white,
             child: !signedIn
                 ? _AccountScroll(
                     collapsedTitle: 'Mon compte',
@@ -89,8 +92,8 @@ class AccountScreen extends ConsumerWidget {
                         header: _ProfileHeader(
                             name: name,
                             phone: phone,
-                            tierCode: account.loyalty.tierCode),
-                        overlap: _MemberCard(loyalty: account.loyalty),
+                            tierCode: account.loyalty.tierCode,
+                            favorites: favorites),
                         children: [
                           if (current != null) ...[
                             _GroupLabel('Commande en cours',
@@ -107,21 +110,11 @@ class AccountScreen extends ConsumerWidget {
                               counts:
                                   orders == null ? null : _countByStage(orders),
                               onOrders: () => context.push('/commandes')),
-                          const _GroupLabel('Mes achats'),
-                          _Group(children: [
-                            _Row(Icons.favorite_border, 'Mes favoris',
-                                value: '$favorites',
-                                muted: true,
-                                onTap: () => context.push('/favoris')),
-                            _Row(Icons.card_giftcard_outlined, 'Cartes cadeaux',
-                                onTap: () => context.push('/cartes-cadeaux')),
-                            _Row(
-                                Icons.group_add_outlined, 'Parrainer un proche',
-                                value: '+50 pts',
-                                onTap: () => context.push('/lo/parrainage')),
-                          ]),
                           const _GroupLabel('Mon profil'),
                           _Group(children: [
+                            _Row(Icons.person_outline_rounded,
+                                'Informations personnelles',
+                                onTap: () => context.push('/compte/infos')),
                             _Row(Icons.notifications_none_rounded,
                                 'Notifications',
                                 value: 'SMS et app',
@@ -151,18 +144,16 @@ class AccountScreen extends ConsumerWidget {
 
 /// The page's scroll view: a pinned blue bar ("Mon compte", then the name
 /// once the header has scrolled away, plus the bell), the blue [header],
-/// an optional card straddling the band's lower edge, then [children].
+/// then [children].
 class _AccountScroll extends StatefulWidget {
   const _AccountScroll({
     required this.collapsedTitle,
     required this.header,
-    this.overlap,
     required this.children,
   });
 
   final String collapsedTitle;
   final Widget header;
-  final Widget? overlap;
   final List<Widget> children;
 
   @override
@@ -194,17 +185,16 @@ class _AccountScrollState extends State<_AccountScroll> {
     final fast = MediaQuery.of(context).disableAnimations
         ? Duration.zero
         : const Duration(milliseconds: 180);
-    final overlap = widget.overlap;
     return CustomScrollView(controller: _controller, slivers: [
       SliverAppBar(
         pinned: true,
         primary: false,
         automaticallyImplyLeading: false,
-        backgroundColor: AppColors.primaryDark,
+        backgroundColor: AppColors.white,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        systemOverlayStyle: SystemUiOverlayStyle.light,
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
         titleSpacing: AppSpacing.lg,
         title: AnimatedSwitcher(
           duration: fast,
@@ -216,67 +206,35 @@ class _AccountScrollState extends State<_AccountScroll> {
               key: ValueKey(_collapsed),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: displayFont(const TextStyle(
-                  color: AppColors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.2))),
+              style: displayFont(AppText.pageTitle.copyWith(letterSpacing: -0.2))),
         ),
         actions: const [_BellButton(), SizedBox(width: AppSpacing.xs)],
       ),
       SliverToBoxAdapter(
+        // The top border is pushed out of the clip so only the sides and
+        // the rounded bottom show.
         child: ClipRect(
-          child: Container(
-            color: AppColors.primaryDark,
-            padding: EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xs,
-                AppSpacing.lg, overlap == null ? 26 : 20),
-            child: Stack(clipBehavior: Clip.none, children: [
-              const Positioned(right: -230, top: -40, child: _Ring()),
-              widget.header,
-            ]),
+          child: Transform.translate(
+            offset: const Offset(0, -1),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                border: Border.all(color: AppColors.border),
+                borderRadius:
+                    const BorderRadius.vertical(bottom: Radius.circular(20)),
+              ),
+              clipBehavior: Clip.antiAlias,
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg, AppSpacing.xs, AppSpacing.lg, 18),
+              child: widget.header,
+            ),
           ),
         ),
       ),
-      if (overlap != null)
-        SliverToBoxAdapter(
-          child: Stack(children: [
-            const Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                height: 64,
-                child: ColoredBox(color: AppColors.primaryDark)),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              child: overlap,
-            ),
-          ]),
-        ),
       SliverList(delegate: SliverChildListDelegate(widget.children)),
       SliverToBoxAdapter(child: SizedBox(height: navBarClearance(context))),
     ]);
   }
-}
-
-/// Faint tilted ellipse decorating the blue band.
-class _Ring extends StatelessWidget {
-  const _Ring();
-
-  @override
-  Widget build(BuildContext context) => IgnorePointer(
-        child: Transform.rotate(
-          angle: -12 * math.pi / 180,
-          child: Container(
-            width: 440,
-            height: 190,
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.all(Radius.elliptical(220, 95)),
-              border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.08), width: 1.5),
-            ),
-          ),
-        ),
-      );
 }
 
 class _Avatar extends StatelessWidget {
@@ -294,17 +252,13 @@ class _Avatar extends StatelessWidget {
             height: 64,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: AppColors.white,
+              color: AppColors.primarySoft,
               shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.white.withValues(alpha: 0.16),
-                    spreadRadius: 3)
-              ],
+              border: Border.all(color: AppColors.border),
             ),
             child: initials == null
                 ? const Icon(Icons.person_outline_rounded,
-                    size: 30, color: Color(0xFFA0AEC0))
+                    size: 30, color: _chevron)
                 : Text(initials!,
                     style: displayFont(const TextStyle(
                         color: AppColors.primary,
@@ -321,7 +275,7 @@ class _Avatar extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: tierColor,
                   shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.primaryDark, width: 3),
+                  border: Border.all(color: AppColors.white, width: 3),
                 ),
               ),
             ),
@@ -338,43 +292,113 @@ String _initials(String name) => name
 
 class _ProfileHeader extends StatelessWidget {
   const _ProfileHeader(
-      {required this.name, required this.phone, required this.tierCode});
+      {required this.name,
+      required this.phone,
+      required this.tierCode,
+      required this.favorites});
   final String name;
   final String phone;
   final String tierCode;
+  final int favorites;
 
   @override
   Widget build(BuildContext context) {
     final tier = loyaltyTierFor(tierCode);
     final shownPhone = phone.startsWith('+') ? phone : '+221 $phone';
-    return Row(children: [
-      _Avatar(
-          initials: _initials(name),
-          tierColor: loyaltyTierColors[tier.code] ?? AppColors.primary),
-      const SizedBox(width: 14),
-      Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Semantics(
-            header: true,
-            child: Text(name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: displayFont(const TextStyle(
-                    color: AppColors.white,
-                    fontSize: 25,
-                    height: 1.05,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3))),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(shownPhone,
-              style: const TextStyle(
-                  color: _onBand,
-                  fontSize: 13.5,
-                  fontFeatures: [FontFeature.tabularFigures()])),
-        ]),
-      ),
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        _Avatar(
+            initials: _initials(name),
+            tierColor: loyaltyTierColors[tier.code] ?? AppColors.primary),
+        const SizedBox(width: 14),
+        Expanded(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Semantics(
+              header: true,
+              child: Text(name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: displayFont(const TextStyle(
+                      color: AppColors.text,
+                      fontSize: 25,
+                      height: 1.05,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.3))),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(shownPhone,
+                style: const TextStyle(
+                    color: _onBand,
+                    fontSize: 13.5,
+                    fontFeatures: [FontFeature.tabularFigures()])),
+          ]),
+        ),
+      ]),
+      const SizedBox(height: AppSpacing.lg),
+      Row(children: [
+        _Shortcut(Icons.inventory_2_outlined, 'Commandes',
+            onTap: () => context.push('/commandes')),
+        _Shortcut(Icons.favorite_border, 'Favoris',
+            count: favorites, onTap: () => context.push('/favoris')),
+        _Shortcut(Icons.card_giftcard_outlined, 'Cartes cadeaux',
+            onTap: () => context.push('/cartes-cadeaux')),
+        _Shortcut(Icons.group_add_outlined, 'Parrainage',
+            onTap: () => context.push('/lo/parrainage')),
+      ]),
     ]);
+  }
+}
+
+class _Shortcut extends StatelessWidget {
+  const _Shortcut(this.icon, this.label, {this.count, required this.onTap});
+  final IconData icon;
+  final String label;
+  final int? count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = count ?? 0;
+    return Expanded(
+      child: Semantics(
+        button: true,
+        label: n > 0 ? '$label, $n' : label,
+        excludeSemantics: true,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Column(children: [
+              Badge(
+                isLabelVisible: n > 0,
+                backgroundColor: AppColors.primary,
+                offset: const Offset(6, -6),
+                label: Text('$n'),
+                child: Container(
+                  width: 46,
+                  height: 46,
+                  decoration: const BoxDecoration(
+                      color: _tileFill, shape: BoxShape.circle),
+                  child: Icon(icon, size: 22, color: AppColors.text),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: AppColors.text,
+                      fontSize: 12,
+                      height: 1.2,
+                      fontWeight: FontWeight.w600)),
+            ]),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -398,7 +422,7 @@ class _GuestHeader extends StatelessWidget {
                       header: true,
                       child: Text('Bienvenue chez LO',
                           style: displayFont(const TextStyle(
-                              color: AppColors.white,
+                              color: AppColors.text,
                               fontSize: 25,
                               height: 1.05,
                               fontWeight: FontWeight.w800,
@@ -420,8 +444,8 @@ class _GuestHeader extends StatelessWidget {
             Expanded(
               child: FilledButton(
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.white,
-                  foregroundColor: AppColors.primaryDark,
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.white,
                   minimumSize: const Size(0, 48),
                   shape: const StadiumBorder(),
                   textStyle: const TextStyle(
@@ -435,11 +459,10 @@ class _GuestHeader extends StatelessWidget {
             Expanded(
               child: OutlinedButton(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.white,
+                  foregroundColor: AppColors.primary,
                   minimumSize: const Size(0, 48),
                   shape: const StadiumBorder(),
-                  side: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.35), width: 1.5),
+                  side: const BorderSide(color: AppColors.primary, width: 1.5),
                   textStyle: const TextStyle(
                       fontSize: 15, fontWeight: FontWeight.w700),
                 ),
@@ -449,192 +472,6 @@ class _GuestHeader extends StatelessWidget {
             ),
           ]),
         ],
-      );
-}
-
-/// White LO+ card straddling the band: tier, balance and its value, progress
-/// to the next tier, then three shortcuts.
-class _MemberCard extends StatelessWidget {
-  const _MemberCard({required this.loyalty});
-  final LoyaltySummary loyalty;
-
-  @override
-  Widget build(BuildContext context) {
-    final tier = loyaltyTierFor(loyalty.tierCode);
-    final next = nextLoyaltyTier(loyalty.tierCode);
-    final tierColor = loyaltyTierColors[tier.code] ?? AppColors.primary;
-    final progress = next == null
-        ? 1.0
-        : ((loyalty.spend12MonthsXof - tier.minSpendXof) /
-                (next.minSpendXof - tier.minSpendXof))
-            .clamp(0.0, 1.0);
-    final note = next == null
-        ? 'Palier maximum atteint.'
-        : 'Encore ${formatXof(next.minSpendXof - loyalty.spend12MonthsXof)} '
-            "d'achats sur 12 mois pour passer ${next.name}.";
-    final animate = !MediaQuery.of(context).disableAnimations;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x40050A28),
-              offset: Offset(0, 20),
-              blurRadius: 40,
-              spreadRadius: -26),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.fromLTRB(9, 5, 11, 5),
-                      decoration: BoxDecoration(
-                          color: _mist,
-                          borderRadius: BorderRadius.circular(AppRadii.pill)),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                                color: tierColor, shape: BoxShape.circle)),
-                        const SizedBox(width: 7),
-                        Text('Membre ${tier.name}',
-                            style: const TextStyle(
-                                color: AppColors.text,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700)),
-                      ]),
-                    ),
-                    const SizedBox(height: 10),
-                    const Text('Solde LO+',
-                        style: TextStyle(
-                            color: AppColors.textSecondary, fontSize: 12.5)),
-                    Text.rich(
-                      TextSpan(children: [
-                        TextSpan(text: '${loyalty.points}'),
-                        const TextSpan(
-                            text: ' points',
-                            style: TextStyle(fontSize: 16, letterSpacing: 0)),
-                      ]),
-                      style: displayFont(const TextStyle(
-                          color: AppColors.text,
-                          fontSize: 44,
-                          height: 1,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.8,
-                          fontFeatures: [FontFeature.tabularFigures()])),
-                    ),
-                  ]),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child:
-                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                const Text('Valeur en caisse',
-                    style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12.5)),
-                const SizedBox(height: 2),
-                Text(formatXof(loyalty.points * _pointValueXof),
-                    style: const TextStyle(
-                        color: AppColors.text,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                        fontFeatures: [FontFeature.tabularFigures()])),
-              ]),
-            ),
-          ]),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            if (next != null) ...[
-              Row(children: [
-                Text(tier.name,
-                    style: const TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w600)),
-                const Spacer(),
-                Text(next.name,
-                    style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600)),
-              ]),
-              const SizedBox(height: 7),
-            ],
-            Semantics(
-              label: note,
-              excludeSemantics: true,
-              child: TweenAnimationBuilder<double>(
-                tween: Tween(begin: animate ? 0 : progress, end: progress),
-                duration: const Duration(milliseconds: 900),
-                curve: const Cubic(.2, .8, .2, 1),
-                builder: (context, value, _) => ClipRRect(
-                  borderRadius: BorderRadius.circular(9),
-                  child: LinearProgressIndicator(
-                    value: value,
-                    minHeight: 8,
-                    backgroundColor: _mist,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(note, style: AppText.caption),
-          ]),
-        ),
-        const Divider(height: 1, color: AppColors.border),
-        IntrinsicHeight(
-          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            _CardAction(Icons.qr_code_2_rounded, 'Ma carte',
-                onTap: () => context.push('/lo/carte')),
-            const VerticalDivider(width: 1, color: AppColors.border),
-            _CardAction(Icons.history_rounded, 'Historique',
-                onTap: () => context.push('/lo/historique')),
-            const VerticalDivider(width: 1, color: AppColors.border),
-            _CardAction(Icons.star_outline_rounded, 'Avantages',
-                onTap: () => context.go('/lo?from=compte')),
-          ]),
-        ),
-      ]),
-    );
-  }
-}
-
-class _CardAction extends StatelessWidget {
-  const _CardAction(this.icon, this.label, {required this.onTap});
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Expanded(
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Icon(icon, size: 21, color: AppColors.primary),
-              const SizedBox(height: 5),
-              Text(label,
-                  style: const TextStyle(
-                      color: AppColors.text,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600)),
-            ]),
-          ),
-        ),
       );
 }
 
@@ -689,7 +526,9 @@ class _CurrentOrder extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       child: Material(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(20),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: AppColors.border)),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
@@ -720,7 +559,7 @@ class _CurrentOrder extends StatelessWidget {
                           children: [
                             Text(order.number,
                                 style: displayFont(const TextStyle(
-                                    color: AppColors.textSecondary,
+                                    color: _grey,
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
                                     letterSpacing: 0.3))),
@@ -736,8 +575,7 @@ class _CurrentOrder extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 13)),
+                                    color: _grey, fontSize: 13)),
                           ]),
                     ),
                   ]),
@@ -779,7 +617,9 @@ class _Stages extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
         decoration: BoxDecoration(
-            color: AppColors.white, borderRadius: BorderRadius.circular(20)),
+            color: AppColors.white,
+            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.circular(20)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           _StageTile(Icons.inventory_2_outlined, 'En préparation',
               count: counts?[_Stage.preparing], onTap: onOrders),
@@ -823,7 +663,8 @@ class _StageTile extends StatelessWidget {
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                      color: _mist, borderRadius: BorderRadius.circular(13)),
+                      color: _tileFill,
+                      borderRadius: BorderRadius.circular(13)),
                   child: Icon(icon, size: 22, color: AppColors.text),
                 ),
               ),
@@ -833,10 +674,10 @@ class _StageTile extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                      color: AppColors.textSecondary,
+                      color: AppColors.text,
                       fontSize: 12,
-                      height: 1.25,
-                      fontWeight: FontWeight.w500)),
+                      height: 1.2,
+                      fontWeight: FontWeight.w600)),
             ]),
           ),
         ),
@@ -862,7 +703,7 @@ class _GroupLabel extends StatelessWidget {
               header: true,
               child: Text(label,
                   style: const TextStyle(
-                      color: AppColors.textSecondary,
+                      color: _grey,
                       fontSize: 13.5,
                       fontWeight: FontWeight.w600)),
             ),
@@ -891,7 +732,9 @@ class _Group extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
         child: Material(
           color: AppColors.white,
-          borderRadius: BorderRadius.circular(20),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: const BorderSide(color: AppColors.border)),
           clipBehavior: Clip.antiAlias,
           child: Column(children: [
             for (var i = 0; i < children.length; i++) ...[
@@ -947,7 +790,7 @@ class _Row extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 10, 8),
           child: Row(children: [
-            Icon(icon, size: 22, color: danger ? ink : AppColors.primary),
+            Icon(icon, size: 22, color: ink),
             const SizedBox(width: 18),
             Expanded(
               child: Text(label,
@@ -961,7 +804,7 @@ class _Row extends StatelessWidget {
               muted
                   ? Text(value!,
                       style: const TextStyle(
-                          color: AppColors.textSecondary,
+                          color: _grey,
                           fontSize: 13.5,
                           fontFeatures: [FontFeature.tabularFigures()]))
                   : Container(
@@ -980,7 +823,7 @@ class _Row extends StatelessWidget {
             if (!danger) ...[
               const SizedBox(width: AppSpacing.xs),
               const Icon(Icons.chevron_right_rounded,
-                  color: Color(0xFFA0AEC0), size: 22),
+                  color: _chevron, size: 22),
             ],
           ]),
         ),
@@ -999,13 +842,14 @@ class _Footer extends StatelessWidget {
         child: Column(children: [
           TextButton(
               style: TextButton.styleFrom(
-                  foregroundColor: AppColors.textSecondary,
+                  foregroundColor: _grey,
                   minimumSize: const Size(48, 44),
                   textStyle: const TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w500)),
               onPressed: () => context.push('/legal'),
               child: const Text('Informations légales')),
-          const Text('LO Multimédia', style: AppText.caption),
+          const Text('LO Multimédia',
+              style: TextStyle(fontSize: 12, color: _grey, height: 1.35)),
         ]),
       );
 }
@@ -1025,7 +869,7 @@ class _BellButton extends ConsumerWidget {
         backgroundColor: AppColors.danger,
         label: Text('$unread'),
         child: const Icon(Icons.notifications_outlined,
-            color: AppColors.white, size: 26),
+            color: AppColors.text, size: 26),
       ),
     );
   }

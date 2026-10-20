@@ -261,20 +261,16 @@ class _LoyaltyContent extends ConsumerWidget {
                       color: AppColors.text, fontSize: 15, height: 1.45),
                 ),
                 const SizedBox(height: AppSpacing.md),
+                // Plain rectangular buttons, rounded like the rest of the
+                // app: text only, no pill shape or icon.
                 Row(children: [
                   Expanded(
-                    child: OutlinedButton.icon(
-                        onPressed: () => context.push('/lo/historique'),
-                        icon: const Icon(Icons.history_rounded, size: 18),
-                        label: const Text('Historique')),
-                  ),
+                      child: _PlainButton('Historique',
+                          () => context.push('/lo/historique'))),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
-                    child: OutlinedButton.icon(
-                        onPressed: () => context.push('/lo/parrainage'),
-                        icon: const Icon(Icons.group_add_outlined, size: 18),
-                        label: const Text('Parrainer')),
-                  ),
+                      child: _PlainButton('Parrainer',
+                          () => context.push('/lo/parrainage'))),
                 ]),
                 const _SectionTitle('Vos paliers',
                     sub: 'Calculés sur vos achats des 12 derniers mois'),
@@ -293,6 +289,32 @@ class _LoyaltyContent extends ConsumerWidget {
           ),
         ]);
   }
+}
+
+class _PlainButton extends StatelessWidget {
+  const _PlainButton(this.label, this.onPressed);
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.text,
+          backgroundColor: AppColors.white,
+          // Light shadow; blue tint on press (and on hover with a mouse).
+          elevation: 1.5,
+          shadowColor: const Color(0x400F173C),
+          overlayColor: AppColors.primary,
+          minimumSize: const Size.fromHeight(48),
+          side: const BorderSide(color: AppColors.border),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadii.md)),
+          textStyle:
+              const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        child: Text(label),
+      );
 }
 
 class _SectionTitle extends StatelessWidget {

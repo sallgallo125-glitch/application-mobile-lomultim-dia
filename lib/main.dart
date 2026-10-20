@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lottie/lottie.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'features/persistence.dart';
@@ -17,6 +18,8 @@ Future<void> main() async {
     overrides: [localPersistenceProvider.overrideWithValue(persistence)],
     child: const LoMultimediaApp(),
   ));
+  // Warm Lottie's cache so the empty-cart animation shows at once.
+  AssetLottie('assets/animations/empty_cart.json').load().ignore();
 }
 
 class LoMultimediaApp extends StatelessWidget {

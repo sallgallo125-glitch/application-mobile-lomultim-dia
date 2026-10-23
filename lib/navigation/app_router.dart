@@ -25,6 +25,7 @@ import '../screens/profile_info_screen.dart';
 import '../screens/gift_card_screens.dart';
 import '../screens/info_screens.dart';
 import '../screens/loyalty_member_screens.dart';
+import '../screens/digital_codes_screen.dart';
 import 'main_shell.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -91,6 +92,15 @@ final GoRouter appRouter = GoRouter(
         parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) =>
             OrderDetailScreen(number: state.pathParameters['number']!)),
+    GoRoute(
+        path: '/mes-codes',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => const DigitalCodesScreen()),
+    GoRoute(
+        path: '/mes-codes/:id',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) =>
+            DigitalCodeDetailScreen(id: state.pathParameters['id']!)),
     GoRoute(
         path: '/connexion',
         parentNavigatorKey: rootNavigatorKey,

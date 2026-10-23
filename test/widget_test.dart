@@ -21,5 +21,10 @@ void main() {
     await tester.pump();
 
     expect(find.text('Nos rayons'), findsOneWidget);
+
+    // "Licences & jeux" then loads the catalogue (same latency).
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+    expect(find.text('Licences & jeux', skipOffstage: false), findsOneWidget);
   });
 }

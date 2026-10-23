@@ -7,6 +7,9 @@ import '../api/errors.dart';
 import '../contracts/account.dart';
 import '../features/account/account_providers.dart';
 import '../features/cart/cart_providers.dart';
+import '../features/digital/digital_catalog.dart';
+import '../features/digital/digital_code_providers.dart';
+import 'digital_codes_screen.dart' show DigitalCodeTile;
 import '../theme/redesign_fonts.dart';
 import '../theme/tokens.dart';
 import '../utils/currency.dart';
@@ -70,7 +73,13 @@ class _DetailBody extends ConsumerWidget {
         const SizedBox(height: AppSpacing.md),
         _Section(
           title: 'Suivi',
-          child: _Timeline(events: order.events, stage: stage),
+          child: _Timeline(
+              events: order.events,
+              stage: stage,
+              // Codes only: no preparation nor shipping steps.
+              digital: summary.items.isNotEmpty &&
+                  summary.items
+                      .every((i) => digitalCatalog.containsKey(i.productId))),
         ),
         _Section(
           title:
@@ -82,6 +91,18 @@ class _DetailBody extends ConsumerWidget {
             ],
           ]),
         ),
+        if (orderDigitalCodes(summary) case final codes when codes.isNotEmpty)
+          _Section(
+            title: 'Codes numériques (${codes.length})',
+            icon: Icons.vpn_key_outlined,
+            child: Column(children: [
+              for (final c in codes)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                  child: DigitalCodeTile(code: c),
+                ),
+            ]),
+          ),
         _Section(
           title: order.deliveryLabel,
           icon: Icons.local_shipping_outlined,
@@ -255,13 +276,15 @@ class _Section extends StatelessWidget {
 /// The 4 steps, each with the time it was reached (from the ERP status
 /// history); a cancelled order shows its history as is.
 class _Timeline extends StatelessWidget {
-  const _Timeline({required this.events, required this.stage});
+  const _Timeline(
+      {required this.events, required this.stage, this.digital = false});
   final List<OrderEvent> events;
   final OrderStage stage;
+  final bool digital;
 
   @override
   Widget build(BuildContext context) {
-    if (stage.cancelled) {
+    if (stage.cancelled || digital) {
       return Column(children: [
         for (final (i, e) in events.indexed)
           _Step(

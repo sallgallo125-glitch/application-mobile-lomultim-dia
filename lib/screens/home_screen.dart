@@ -195,6 +195,8 @@ class _HomeContentView extends ConsumerWidget {
           ),
           ProductRail(products: content.flashProducts),
         ],
+        const SizedBox(height: AppSpacing.lg),
+        const HomeDigitalCodes(),
         if (content.bestSellers.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.lg),
           SectionHeader(
@@ -247,6 +249,7 @@ class _HomeContentView extends ConsumerWidget {
           ),
           ProductRail(products: content.recommendedProducts),
         ],
+        const SizedBox(height: AppSpacing.lg),
         HomeBrands(fallback: [
           ...content.flashProducts,
           ...content.bestSellers,
@@ -255,6 +258,8 @@ class _HomeContentView extends ConsumerWidget {
         ]),
         const SizedBox(height: AppSpacing.lg),
         const _GiftCardPromo(),
+        const SizedBox(height: AppSpacing.lg),
+        const HomeWhyUs(),
         const SizedBox(height: AppSpacing.lg),
         const SectionHeader(title: 'Services'),
         const SizedBox(height: AppSpacing.sm),

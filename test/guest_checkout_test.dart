@@ -77,7 +77,7 @@ void main() {
     await settle();
     // Guests are invited to sign in to use their LO+ points.
     expect(find.text('Se connecter'), findsOneWidget);
-    await tester.tap(find.textContaining('Commander ('));
+    await tester.tap(find.text('Commander'));
     await settle();
 
     // Step 1: contact details typed by the guest, pick-up in showroom.

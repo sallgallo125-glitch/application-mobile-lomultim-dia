@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../contracts/account.dart';
+import '../contracts/digital_code.dart';
+import '../features/digital/digital_code_providers.dart';
+import 'digital_codes_screen.dart' show DigitalCodeTile;
 import '../theme/tokens.dart';
 import '../utils/currency.dart';
 import '../utils/delivery.dart';
@@ -13,6 +16,34 @@ class ConfirmationScreen extends StatelessWidget {
   const ConfirmationScreen({super.key, required this.order});
 
   final OrderSummary? order;
+
+  /// Licences and game codes are delivered right away, here and in
+  /// Compte › Mes codes: no trip to the shop.
+  List<Widget> _digitalCodes(List<DigitalCode> codes) => [
+        if (codes.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.lg),
+          Row(children: [
+            const Icon(Icons.vpn_key_outlined, color: AppColors.primary),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                  codes.length > 1
+                      ? 'Vos ${codes.length} codes sont prêts'
+                      : 'Votre code est prêt',
+                  style: AppText.section),
+            ),
+          ]),
+          const SizedBox(height: AppSpacing.xs),
+          const Text('Touchez une carte pour révéler et copier votre code.',
+              style: AppText.caption),
+          const SizedBox(height: AppSpacing.md),
+          for (final c in codes)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+              child: DigitalCodeTile(code: c),
+            ),
+        ],
+      ];
 
   @override
   Widget build(BuildContext context) {
@@ -64,7 +95,11 @@ class ConfirmationScreen extends StatelessWidget {
                               Text(
                                 orderData == null
                                     ? 'Votre commande est enregistrée.'
-                                    : 'Votre commande ${orderData.number} est enregistrée. Un conseiller vous confirme la livraison par WhatsApp.',
+                                    : orderData.status
+                                            .toLowerCase()
+                                            .contains('livr')
+                                        ? 'Votre commande ${orderData.number} est payée et livrée : vos codes sont disponibles ci-dessous.'
+                                        : 'Votre commande ${orderData.number} est enregistrée. Un conseiller vous confirme la livraison par WhatsApp.',
                                 style: const TextStyle(
                                   color: AppColors.textSecondary,
                                   fontSize: 13.5,
@@ -137,6 +172,8 @@ class ConfirmationScreen extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (orderData != null)
+                      ..._digitalCodes(digitalCodesForOrder(orderData)),
                     const SizedBox(height: AppSpacing.md),
                     const Text(
                       'Suivi de la commande',
@@ -144,18 +181,30 @@ class ConfirmationScreen extends StatelessWidget {
                           TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    const _TrackingTimeline(
-                      steps: [
+                    if (orderData != null &&
+                        digitalCodesForOrder(orderData).length ==
+                            orderData.items
+                                .fold<int>(0, (n, i) => n + i.quantity) &&
+                        orderData.items.isNotEmpty)
+                      const _TrackingTimeline(steps: [
                         _TrackingStep('Commande reçue', "Aujourd'hui", true),
-                        _TrackingStep(
-                            'Paiement confirmé', 'Sous 30 min', false),
-                        _TrackingStep(
-                            'Préparation en atelier', 'Sous 4 h', false),
-                        _TrackingStep(
-                            'En cours de livraison', 'Demain matin', false),
-                        _TrackingStep('Livrée', '24 – 48 h', false),
-                      ],
-                    ),
+                        _TrackingStep('Paiement confirmé', "Aujourd'hui", true),
+                        _TrackingStep('Codes livrés dans l’app',
+                            'Compte › Mes codes', true),
+                      ])
+                    else
+                      const _TrackingTimeline(
+                        steps: [
+                          _TrackingStep('Commande reçue', "Aujourd'hui", true),
+                          _TrackingStep(
+                              'Paiement confirmé', 'Sous 30 min', false),
+                          _TrackingStep(
+                              'Préparation en atelier', 'Sous 4 h', false),
+                          _TrackingStep(
+                              'En cours de livraison', 'Demain matin', false),
+                          _TrackingStep('Livrée', '24 – 48 h', false),
+                        ],
+                      ),
                     const SizedBox(height: AppSpacing.md),
                     if (orderData != null && orderData.guest) ...[
                       _GuestAccountCard(order: orderData),
@@ -220,8 +269,8 @@ class ConfirmationScreen extends StatelessWidget {
         children: [
           Expanded(
               child: Text(label,
-                  style:
-                      const TextStyle(color: AppColors.textSecondary, fontSize: 13))),
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 13))),
           Text(
             value,
             style: TextStyle(

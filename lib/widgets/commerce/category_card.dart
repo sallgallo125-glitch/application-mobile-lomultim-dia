@@ -91,13 +91,13 @@ class CategoryCircle extends StatelessWidget {
                 clipBehavior: Clip.antiAlias,
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Color(0xFFF1F3F7),
+                  color: Color(0xFFF6F7FA), // light grey, softer than the shop's #F1F3F7
                 ),
                 child: ExcludeSemantics(
                   child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    // Transparent cut-out drawn straight on the circle (no
-                    // white photo box); category icon when missing.
+                    padding: const EdgeInsets.all(8),
+                    // Transparent cut-out on the same grey circle for every
+                    // category; category icon when missing.
                     child: category.imageUrl == null
                         ? Icon(iconForKey(category.icon),
                             size: 30, color: AppColors.primary)

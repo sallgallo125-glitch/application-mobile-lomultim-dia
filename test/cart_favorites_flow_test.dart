@@ -44,7 +44,7 @@ void main() {
     await tester.tap(find.text('ajouté au panier'));
     await settle(tester);
     expect(find.textContaining('HP ProBook 450 G10'), findsOneWidget);
-    expect(find.textContaining('Commander ('), findsOneWidget);
+    expect(find.text('Commander'), findsOneWidget);
     expect(find.text('ajouté au panier'), findsNothing);
 
     // Increase the item from the cart after opening it via the toast.
@@ -55,7 +55,7 @@ void main() {
     await open(tester, '/panier');
     expect(find.textContaining('HP ProBook 450 G10'), findsOneWidget);
     expect(find.text('2'), findsWidgets);
-    expect(find.textContaining('Commander ('), findsOneWidget);
+    expect(find.text('Commander'), findsOneWidget);
     expect(find.text('Total'), findsWidgets);
     expect(find.text('Utiliser mes points LO+'), findsOneWidget);
     expect(

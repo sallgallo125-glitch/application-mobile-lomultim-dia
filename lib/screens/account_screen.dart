@@ -339,6 +339,8 @@ class _ProfileHeader extends StatelessWidget {
       Row(children: [
         _Shortcut(Icons.inventory_2_outlined, 'Commandes',
             onTap: () => context.push('/commandes')),
+        _Shortcut(Icons.vpn_key_outlined, 'Mes codes',
+            onTap: () => context.push('/mes-codes')),
         _Shortcut(Icons.favorite_border, 'Favoris',
             count: favorites, onTap: () => context.push('/favoris')),
         _Shortcut(Icons.card_giftcard_outlined, 'Cartes cadeaux',

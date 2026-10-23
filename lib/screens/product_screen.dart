@@ -1501,7 +1501,8 @@ class _GalleryState extends ConsumerState<_Gallery> {
   @override
   Widget build(BuildContext context) {
     final photos = widget.photos;
-    final height = (MediaQuery.sizeOf(context).width * 0.8).clamp(240.0, 440.0);
+    // Square frame as wide as the screen: the photo fills the whole width.
+    final height = MediaQuery.sizeOf(context).width.clamp(240.0, 560.0);
     return Column(children: [
       SizedBox(
         height: height,
@@ -1520,14 +1521,11 @@ class _GalleryState extends ConsumerState<_Gallery> {
                         label:
                             'Photo ${i + 1} sur ${photos.length}, toucher pour agrandir',
                         image: true,
-                        child: Padding(
-                          padding: const EdgeInsets.all(AppSpacing.xl),
-                          child: ProductImage(
-                              url: photos[i],
-                              categoryId: widget.categoryId,
-                              iconSize: 72,
-                              fit: BoxFit.contain),
-                        ),
+                        child: ProductImage(
+                            url: photos[i],
+                            categoryId: widget.categoryId,
+                            iconSize: 72,
+                            fit: BoxFit.cover),
                       ),
                     ),
                   ),

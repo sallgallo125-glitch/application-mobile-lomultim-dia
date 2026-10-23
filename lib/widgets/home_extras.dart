@@ -7,7 +7,10 @@ import '../contracts/product.dart';
 import '../features/catalog/catalog_providers.dart';
 import '../features/catalog/shop_filters.dart';
 import '../features/customer/customer_providers.dart';
+import '../features/digital/digital_catalog.dart';
 import '../theme/tokens.dart';
+import '../utils/currency.dart';
+import 'digital/digital_product_card.dart';
 import 'commerce/product_rail.dart';
 import 'section_header.dart';
 
@@ -182,6 +185,180 @@ class HomeRecentlyViewed extends ConsumerWidget {
         const SectionHeader(title: 'Vus récemment'),
         const SizedBox(height: AppSpacing.sm),
         ProductRail(products: recent),
+      ],
+    );
+  }
+}
+
+/// Licences Windows and game codes: the code is delivered in the app right
+/// after payment (Compte › Mes codes), no trip to the shop.
+class HomeDigitalCodes extends ConsumerWidget {
+  const HomeDigitalCodes({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final products = [
+      for (final p in ref.watch(productsProvider).value ?? const [])
+        if (digitalCatalog.containsKey(p.id)) p
+    ];
+    if (products.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeader(
+            title: 'Licences & jeux',
+            actionLabel: 'Mes codes →',
+            onActionPressed: () => context.push('/mes-codes')),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg, 2, AppSpacing.lg, AppSpacing.sm),
+          child: Row(children: [
+            const Icon(Icons.bolt_rounded, size: 16, color: AppColors.success),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                  'Code reçu dans l’app dès le paiement, sans déplacement.',
+                  style: AppText.caption.copyWith(fontSize: 13)),
+            ),
+          ]),
+        ),
+        SizedBox(
+          // Card (210 wide, 1.586 ratio) + name and price lines, which grow
+          // with the phone's text size.
+          height: 150 + MediaQuery.textScalerOf(context).scale(52),
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            itemCount: products.length,
+            separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
+            itemBuilder: (context, i) {
+              final p = products[i];
+              return InkWell(
+                borderRadius: BorderRadius.circular(AppRadii.xl),
+                onTap: () => context.push('/produit/${p.id}'),
+                child: SizedBox(
+                  width: 210,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6, top: 2),
+                        // Drawn at its design width then scaled down, so the
+                        // card never overflows on small screens.
+                        child: FittedBox(
+                          child: SizedBox(
+                            width: 320,
+                            child: DigitalProductCard(
+                                code: digitalCatalog[p.id]!.preview(p.id),
+                                compact: true),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(p.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600)),
+                      Wrap(spacing: 6, children: [
+                        Text(formatXof(p.priceXof),
+                            style: const TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800)),
+                        if (p.compareAtPriceXof != null) ...[
+                          Text(formatXof(p.compareAtPriceXof!),
+                              style: AppText.caption.copyWith(
+                                  decoration: TextDecoration.lineThrough)),
+                        ],
+                      ]),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// "Pourquoi LO Multimédia": four reasons to trust the shop.
+class HomeWhyUs extends StatelessWidget {
+  const HomeWhyUs({super.key});
+
+  static const _reasons = [
+    (
+      Icons.verified_outlined,
+      'Produits originaux',
+      'Garantie constructeur et facture'
+    ),
+    (
+      Icons.account_balance_wallet_outlined,
+      'Paiement facile',
+      'Wave, Orange Money ou à la livraison'
+    ),
+    (
+      Icons.local_shipping_outlined,
+      'Livraison à Dakar',
+      'En 24 – 48 h, ou retrait en showroom'
+    ),
+    (
+      Icons.storefront_outlined,
+      'Depuis 2011',
+      '2 showrooms : Sandaga & Médina'
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeader(title: 'Pourquoi LO Multimédia'),
+        const SizedBox(height: AppSpacing.sm),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          child: LayoutBuilder(builder: (context, constraints) {
+            final width = (constraints.maxWidth - AppSpacing.sm) / 2;
+            return Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final (icon, title, detail) in _reasons)
+                  Container(
+                    width: width,
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.circular(AppRadii.md),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                              color: AppColors.primarySoft,
+                              borderRadius: BorderRadius.circular(AppRadii.sm)),
+                          child: Icon(icon, size: 19, color: AppColors.primary),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(title,
+                            style: const TextStyle(
+                                fontSize: 13.5, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 2),
+                        Text(detail, style: AppText.caption),
+                      ],
+                    ),
+                  ),
+              ],
+            );
+          }),
+        ),
       ],
     );
   }

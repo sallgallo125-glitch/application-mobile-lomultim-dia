@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../contracts/digital_code.dart';
+import '../features/digital/digital_catalog.dart';
 import '../utils/delivery.dart';
 import '../utils/loyalty.dart';
 import '../features/persistence.dart';
@@ -194,6 +196,10 @@ class MockHttpClient extends http.BaseClient {
       });
     }
     if (request.method == 'GET' && path == '/api/v1/orders') {
+      // Orders placed before instant digital delivery existed.
+      if (_orders.map(_deliverDigital).toList().contains(true)) {
+        await _saveOrders();
+      }
       return _json(request, 200, {'data': _orders});
     }
     final orderRoute =
@@ -334,6 +340,7 @@ class MockHttpClient extends http.BaseClient {
         if ((body['address'] as String? ?? '').trim().isNotEmpty)
           'address': (body['address'] as String).trim(),
       };
+      _deliverDigital(order);
       // "Mes commandes" lists the member's orders only.
       if (!guest) {
         _orders.insert(0, order);
@@ -460,19 +467,36 @@ class MockHttpClient extends http.BaseClient {
             {'code': 'not_found', 'message': 'Product not found'});
       }
       final product = matches.first;
+      final digital = digitalCatalog[id];
       return _json(request, 200, {
         'data': {
           ...product,
-          'description':
-              'Produit original sélectionné par LO Multimédia, avec garantie constructeur et facture.',
+          'description': digital != null
+              ? 'Produit numérique officiel. Votre ${digital.platform == DigitalPlatform.windows ? 'clé de licence' : 'code de jeu'} '
+                  's’affiche dans l’application (Compte › Mes codes) dès le paiement confirmé : '
+                  'aucun déplacement en boutique.'
+              : 'Produit original sélectionné par LO Multimédia, avec garantie constructeur et facture.',
           'images': product['images'] ??
               [if (product['imageUrl'] != null) product['imageUrl']],
-          'specifications': {
-            'Marque': product['brand'] as String,
-            'Disponibilité':
-                product['inStock'] == true ? 'En stock' : 'Rupture de stock',
-            'Garantie': '12 mois'
-          },
+          'specifications': digital != null
+              ? {
+                  'Plateforme': digital.platform == DigitalPlatform.windows
+                      ? 'PC Windows'
+                      : digital.edition.split(' · ').last,
+                  'Édition': digital.edition.split(' · ').first,
+                  'Région': digital.region,
+                  'Activation': digital.activation,
+                  if (digital.licenseType != null)
+                    'Licence': '${digital.licenseType} · ${digital.devices} PC',
+                  'Livraison': 'Numérique immédiate dans l’app',
+                }
+              : {
+                  'Marque': product['brand'] as String,
+                  'Disponibilité': product['inStock'] == true
+                      ? 'En stock'
+                      : 'Rupture de stock',
+                  'Garantie': '12 mois'
+                },
           'optionGroups': optionGroupsFor(id),
           'addons': accessoriesFor(id),
           'reviews': [
@@ -577,6 +601,38 @@ class MockHttpClient extends http.BaseClient {
       Future<void>.value();
 
   /// Mirrors the ERP's « annulable »: until the order leaves for delivery.
+  /// Orders of licences / game codes only: the codes are delivered in the
+  /// app as soon as the order is placed, so the order is « Livrée » right
+  /// away (no preparation nor shipping). Returns true when [order] changed.
+  bool _deliverDigital(Map<String, dynamic> order) {
+    final items = (order['items'] as List<dynamic>? ?? const [])
+        .cast<Map<String, dynamic>>();
+    final status = (order['status'] as String).toLowerCase();
+    if (items.isEmpty ||
+        !items.every((i) => digitalCatalog.containsKey(i['productId'])) ||
+        status.contains('livr') ||
+        status.contains('annul')) {
+      return false;
+    }
+    final at = _events(order).first['at'] ?? _nowLabel();
+    order['status'] = 'Livrée';
+    order['digital'] = true;
+    order.remove('deliveryMethodCode');
+    order['deliveryFeeXof'] = 0;
+    order['deliveryInfo'] =
+        'Livraison numérique · codes disponibles dans Mes codes';
+    order['events'] = [
+      {'status': 'Confirmée', 'at': at},
+      {'status': 'Paiement confirmé', 'at': at},
+      {
+        'status': 'Livrée',
+        'at': at,
+        'comment': 'Codes livrés dans l’application (Compte › Mes codes)'
+      },
+    ];
+    return true;
+  }
+
   bool _cancellable(Map<String, dynamic> order) {
     final status = (order['status'] as String).toLowerCase();
     return !['annul', 'route', 'expédi', 'prête', 'livr'].any(status.contains);
@@ -645,7 +701,8 @@ class MockHttpClient extends http.BaseClient {
       'subtotalXof':
           linesTotal > 0 ? linesTotal : (order['totalXof'] as int) - fee,
       'deliveryFeeXof': fee,
-      'deliveryLabel': method.label,
+      'deliveryLabel':
+          order['digital'] == true ? 'Livraison numérique' : method.label,
       if (method == DeliveryMethod.pickup && order['address'] == null)
         'address': 'Showroom Sandaga, avenue Lamine Guèye',
       'paymentLabel': payment.label,

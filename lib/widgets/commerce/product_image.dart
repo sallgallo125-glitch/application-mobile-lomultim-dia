@@ -51,15 +51,17 @@ class ProductImage extends StatelessWidget {
     final digital = digitalSpecFromImage(src);
     if (digital != null) {
       return Container(
-        color: AppColors.surfaceMuted,
+        color: AppColors.white,
         padding: const EdgeInsets.all(AppSpacing.sm),
         alignment: Alignment.center,
-        child: FittedBox(
-          child: SizedBox(
-              width: 320,
-              child: DigitalProductCard(
-                  code: digital.preview(src), compact: true)),
-        ),
+        child: digital.imageAsset != null
+            ? Image.asset(digital.imageAsset!, fit: BoxFit.contain)
+            : FittedBox(
+                child: SizedBox(
+                    width: 320,
+                    child: DigitalProductCard(
+                        code: digital.preview(src), compact: true)),
+              ),
       );
     }
     Widget image = src.startsWith('assets/')

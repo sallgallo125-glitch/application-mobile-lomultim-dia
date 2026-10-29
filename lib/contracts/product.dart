@@ -181,6 +181,7 @@ class ProductDetail extends ProductSummary {
       required super.priceXof,
       super.compareAtPriceXof,
       super.imageUrl,
+      super.secondaryImageUrl,
       super.rating,
       super.reviewCount,
       required super.inStock,
@@ -205,6 +206,11 @@ class ProductDetail extends ProductSummary {
   final List<ProductOptionGroup> optionGroups;
   factory ProductDetail.fromJson(Map<String, dynamic> json) {
     final summary = ProductSummary.fromJson(json);
+    final images =
+        (json['images'] as List<dynamic>? ?? const []).cast<String>().toList();
+    for (final image in [summary.imageUrl, summary.secondaryImageUrl]) {
+      if (image != null && !images.contains(image)) images.add(image);
+    }
     final rawSpecifications =
         Map<String, dynamic>.from(json['specifications'] as Map? ?? const {});
     return ProductDetail(
@@ -215,12 +221,13 @@ class ProductDetail extends ProductSummary {
         priceXof: summary.priceXof,
         compareAtPriceXof: summary.compareAtPriceXof,
         imageUrl: summary.imageUrl,
+        secondaryImageUrl: summary.secondaryImageUrl,
         rating: summary.rating,
         reviewCount: summary.reviewCount,
         inStock: summary.inStock,
         badges: summary.badges,
         description: json['description'] as String?,
-        images: (json['images'] as List<dynamic>? ?? const []).cast<String>(),
+        images: images,
         specifications: rawSpecifications
             .map((key, value) => MapEntry(key, value as String)),
         variants: (json['variants'] as List<dynamic>? ?? const [])

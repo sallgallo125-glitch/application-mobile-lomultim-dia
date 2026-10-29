@@ -9,8 +9,6 @@ import '../features/catalog/shop_filters.dart';
 import '../features/customer/customer_providers.dart';
 import '../features/digital/digital_catalog.dart';
 import '../theme/tokens.dart';
-import '../utils/currency.dart';
-import 'digital/digital_product_card.dart';
 import 'commerce/product_rail.dart';
 import 'section_header.dart';
 
@@ -197,7 +195,7 @@ class HomeDigitalCodes extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final products = [
+    final List<ProductSummary> products = [
       for (final p in ref.watch(productsProvider).value ?? const [])
         if (digitalCatalog.containsKey(p.id)) p
     ];
@@ -222,63 +220,7 @@ class HomeDigitalCodes extends ConsumerWidget {
             ),
           ]),
         ),
-        SizedBox(
-          // Card (210 wide, 1.586 ratio) + name and price lines, which grow
-          // with the phone's text size.
-          height: 150 + MediaQuery.textScalerOf(context).scale(52),
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            itemCount: products.length,
-            separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
-            itemBuilder: (context, i) {
-              final p = products[i];
-              return InkWell(
-                borderRadius: BorderRadius.circular(AppRadii.xl),
-                onTap: () => context.push('/produit/${p.id}'),
-                child: SizedBox(
-                  width: 210,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 6, top: 2),
-                        // Drawn at its design width then scaled down, so the
-                        // card never overflows on small screens.
-                        child: FittedBox(
-                          child: SizedBox(
-                            width: 320,
-                            child: DigitalProductCard(
-                                code: digitalCatalog[p.id]!.preview(p.id),
-                                compact: true),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(p.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w600)),
-                      Wrap(spacing: 6, children: [
-                        Text(formatXof(p.priceXof),
-                            style: const TextStyle(
-                                color: AppColors.primary,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800)),
-                        if (p.compareAtPriceXof != null) ...[
-                          Text(formatXof(p.compareAtPriceXof!),
-                              style: AppText.caption.copyWith(
-                                  decoration: TextDecoration.lineThrough)),
-                        ],
-                      ]),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
+        ProductRail(products: products),
       ],
     );
   }

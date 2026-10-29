@@ -10,6 +10,7 @@ class DigitalProductSpec {
     required this.region,
     required this.activation,
     required this.sku,
+    this.imageAsset,
     this.licenseType,
     this.devices,
   });
@@ -20,6 +21,7 @@ class DigitalProductSpec {
   final String region;
   final String activation;
   final String sku;
+  final String? imageAsset;
   final String? licenseType;
   final int? devices;
 
@@ -51,6 +53,7 @@ const digitalCatalog = <String, DigitalProductSpec>{
       region: 'Mondial',
       activation: 'Clé produit',
       sku: 'FQC-10572',
+      imageAsset: 'assets/licencejeux/images-removebg-preview.png',
       licenseType: 'Retail',
       devices: 1),
   'p-201': DigitalProductSpec(
@@ -60,6 +63,7 @@ const digitalCatalog = <String, DigitalProductSpec>{
       region: 'Mondial',
       activation: 'Clé produit',
       sku: 'KW9-00664',
+      imageAsset: 'assets/licencejeux/windows10.png',
       licenseType: 'Retail',
       devices: 1),
   'p-202': DigitalProductSpec(
@@ -69,6 +73,8 @@ const digitalCatalog = <String, DigitalProductSpec>{
       region: 'Mondial',
       activation: 'Clé produit',
       sku: 'FQC-09131',
+      imageAsset:
+          'assets/licencejeux/Microsoft-Windows-10-Pro-OEM-Lifetime-License-Global-500x500-removebg-preview.png',
       licenseType: 'Retail',
       devices: 1),
   'p-203': DigitalProductSpec(
@@ -86,42 +92,53 @@ const digitalCatalog = <String, DigitalProductSpec>{
       edition: 'Standard · PS5',
       region: 'EU',
       activation: 'Code PlayStation Store',
-      sku: 'PS5-FC26-STD-EU'),
+      sku: 'PS5-FC26-STD-EU',
+      imageAsset:
+          'assets/licencejeux/OHKLZFOZZZHOPONXDZNEBDMTTM-removebg-preview.png'),
   'p-211': DigitalProductSpec(
       name: 'Marvel’s Spider-Man 2',
       platform: DigitalPlatform.playstation,
       edition: 'Standard · PS5',
       region: 'EU',
       activation: 'Code PlayStation Store',
-      sku: 'PS5-MSM2-STD-EU'),
+      sku: 'PS5-MSM2-STD-EU',
+      imageAsset:
+          'assets/licencejeux/dd6821cf467f512c7314c1f33224d6aa-removebg-preview.png'),
   'p-212': DigitalProductSpec(
       name: 'Forza Horizon 5',
       platform: DigitalPlatform.xbox,
       edition: 'Premium · Xbox Series X|S',
       region: 'Mondial',
       activation: 'Code Microsoft Store',
-      sku: 'XB-FH5-PRM'),
+      sku: 'XB-FH5-PRM',
+      imageAsset:
+          'assets/licencejeux/forza-horizon-5-standard-edition-jeu-xbox-seri-removebg-preview.png'),
   'p-213': DigitalProductSpec(
       name: 'Mario Kart World',
       platform: DigitalPlatform.nintendo,
       edition: 'Standard · Switch 2',
       region: 'EU',
       activation: 'Code Nintendo eShop',
-      sku: 'NSW2-MKW-EU'),
+      sku: 'NSW2-MKW-EU',
+      imageAsset:
+          'assets/licencejeux/8cb64123-mario-kart-world__1200_1200-removebg-preview.png'),
   'p-214': DigitalProductSpec(
       name: 'Zelda: Tears of the Kingdom',
       platform: DigitalPlatform.nintendo,
       edition: 'Standard · Switch',
       region: 'EU',
       activation: 'Code Nintendo eShop',
-      sku: 'NSW-TOTK-EU'),
+      sku: 'NSW-TOTK-EU',
+      imageAsset: 'assets/licencejeux/512LtDpmtOL-removebg-preview.png'),
   'p-215': DigitalProductSpec(
       name: 'Cyberpunk 2077',
       platform: DigitalPlatform.steam,
       edition: 'Ultimate · PC',
       region: 'Mondial',
       activation: 'Clé Steam',
-      sku: 'STM-CP77-ULT'),
+      sku: 'STM-CP77-ULT',
+      imageAsset:
+          'assets/licencejeux/Cyberpunk-2077-Ultimate-Edition-ps5-cover-removebg-preview.png'),
 };
 
 DigitalProductSpec? digitalSpecFromImage(String url) =>

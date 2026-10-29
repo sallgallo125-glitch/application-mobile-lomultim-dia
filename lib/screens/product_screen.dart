@@ -1578,7 +1578,7 @@ class _GalleryState extends ConsumerState<_Gallery> {
                           height: 7,
                           decoration: BoxDecoration(
                             color: i == _index
-                                ? AppColors.text
+                                ? AppColors.gold
                                 : AppColors.textSecondary
                                     .withValues(alpha: .35),
                             borderRadius: BorderRadius.circular(AppRadii.pill),

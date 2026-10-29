@@ -89,10 +89,7 @@ class AppHeader extends StatelessWidget {
                               title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  color: AppColors.primaryDark,
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w800),
+                              style: AppText.pageTitle,
                             ),
                             if (subtitle != null)
                               Text(

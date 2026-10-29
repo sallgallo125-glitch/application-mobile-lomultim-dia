@@ -122,9 +122,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final categoryNames = {for (final c in categories) c.id: c.name};
     final source = filtered ? applyShopFilters(products, _filters) : products;
     return source.where((p) {
-      final haystack = ' ' +
-          normalizeSearch(
-              '${p.name} ${p.brand} ${categoryNames[p.categoryId] ?? ''}');
+      final haystack = ' ${normalizeSearch(
+              '${p.name} ${p.brand} ${categoryNames[p.categoryId] ?? ''}')}';
       // "mac book" also matches "MacBook".
       final compact = haystack.replaceAll(' ', '');
       return words.every((w) =>

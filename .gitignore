@@ -45,3 +45,6 @@ web/
 
 # Widget Preview related
 .widget_preview/
+.superpowers/
+hs_err_pid*.log
+replay_pid*.log

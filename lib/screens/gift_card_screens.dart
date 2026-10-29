@@ -39,13 +39,18 @@ const _conditions = [
 
 /// Buy a gift card, check a balance, read the conditions (site: /carte-cadeau).
 class GiftCardScreen extends ConsumerStatefulWidget {
-  const GiftCardScreen({super.key});
+  const GiftCardScreen({super.key, this.initialAmountXof});
+
+  /// Amount preselected when opened from the home page.
+  final int? initialAmountXof;
   @override
   ConsumerState<GiftCardScreen> createState() => _GiftCardScreenState();
 }
 
 class _GiftCardScreenState extends ConsumerState<GiftCardScreen> {
-  int _amount = 50000;
+  late int _amount = giftCardPresetsXof.contains(widget.initialAmountXof)
+      ? widget.initialAmountXof!
+      : 50000;
   final _customAmount = TextEditingController();
   GiftCardDelivery _delivery = GiftCardDelivery.digitalWhatsapp;
   final _recipient = TextEditingController();
@@ -319,6 +324,11 @@ class MyGiftCardsScreen extends ConsumerWidget {
             ErrorState(onRetry: () => ref.invalidate(myGiftCardsProvider)),
         data: (items) =>
             ListView(padding: const EdgeInsets.all(AppSpacing.lg), children: [
+          OutlinedButton.icon(
+              onPressed: () => context.push('/carte-cadeau'),
+              icon: const Icon(Icons.card_giftcard),
+              label: const Text('Offrir une carte cadeau')),
+          const SizedBox(height: AppSpacing.md),
           if (items.isEmpty)
             const Padding(
                 padding: EdgeInsets.only(bottom: AppSpacing.md),
@@ -388,10 +398,6 @@ class MyGiftCardsScreen extends ConsumerWidget {
                     ]),
               ),
             ),
-          OutlinedButton.icon(
-              onPressed: () => context.push('/carte-cadeau'),
-              icon: const Icon(Icons.card_giftcard),
-              label: const Text('Offrir une carte cadeau')),
         ]),
       ),
     );

@@ -548,8 +548,9 @@ class MockMemberBackend {
   MockResult _convert(Map<String, dynamic> body) {
     final reward =
         _catalogue.where((r) => r['id'] == body['rewardId']).firstOrNull;
-    if (reward == null)
+    if (reward == null) {
       return _fail(404, 'NOT_FOUND', 'Récompense introuvable.');
+    }
     if (reward['stock'] == 0) {
       return _fail(422, 'OUT_OF_STOCK', 'Cette récompense est épuisée.');
     }

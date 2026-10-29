@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/tokens.dart';
+import '../../features/digital/digital_catalog.dart';
+import '../digital/digital_product_card.dart';
 import '../shimmer.dart' show Shimmer;
 
 /// Placeholder icon per category, used when a product has no photo yet.
@@ -45,6 +47,23 @@ class ProductImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final src = url;
     if (src == null || src.isEmpty) return _placeholder();
+    // Licence / game code: the brand card stands in for the photo.
+    final digital = digitalSpecFromImage(src);
+    if (digital != null) {
+      return Container(
+        color: AppColors.white,
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        alignment: Alignment.center,
+        child: digital.imageAsset != null
+            ? Image.asset(digital.imageAsset!, fit: BoxFit.contain)
+            : FittedBox(
+                child: SizedBox(
+                    width: 320,
+                    child: DigitalProductCard(
+                        code: digital.preview(src), compact: true)),
+              ),
+      );
+    }
     Widget image = src.startsWith('assets/')
         ? Image.asset(
             src,

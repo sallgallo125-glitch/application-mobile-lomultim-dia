@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../contracts/digital_code.dart';
+import '../features/digital/digital_catalog.dart';
 import '../utils/delivery.dart';
 import '../utils/loyalty.dart';
 import '../features/persistence.dart';
@@ -13,9 +15,12 @@ import 'data/products_mock_data.dart';
 Map<String, dynamic> _orderItem(String productId) {
   final product = mockProducts.firstWhere((item) => item['id'] == productId);
   return {
+    'productId': productId,
     'name': product['name'],
     'imageUrl': product['imageUrl'],
     'categoryId': product['categoryId'],
+    'quantity': 1,
+    'unitPriceXof': product['priceXof'],
   };
 }
 
@@ -44,8 +49,26 @@ class MockHttpClient extends http.BaseClient {
           'createdAt': '24 septembre 2026',
           'status': 'En préparation',
           'totalXof': 482000,
+          'pointsToEarn': 48,
           'deliveryInfo':
               'Livraison prévue entre le mercredi 14 octobre et le jeudi 15 octobre',
+          'deliveryMethodCode': 'STANDARD',
+          'paymentMethod': 'WAVE',
+          'name': 'Aissatou Diop',
+          'address': 'Sacré-Cœur 3, villa 112, Dakar',
+          'events': [
+            {'status': 'Reçue', 'at': '24 sept., 10:42'},
+            {
+              'status': 'Confirmée',
+              'at': '24 sept., 11:05',
+              'comment': 'Paiement Wave reçu'
+            },
+            {
+              'status': 'En préparation',
+              'at': '25 sept., 09:15',
+              'comment': 'Showroom Sandaga'
+            },
+          ],
           'items': [
             _orderItem('p-001'),
             _orderItem('p-004'),
@@ -58,6 +81,23 @@ class MockHttpClient extends http.BaseClient {
           'status': 'Livrée',
           'totalXof': 145000,
           'deliveryInfo': 'Livré le 24-09',
+          'deliveryMethodCode': 'PICKUP',
+          'paymentMethod': 'CASH_ON_DELIVERY',
+          'name': 'Aissatou Diop',
+          'events': [
+            {'status': 'Reçue', 'at': '12 sept., 16:20'},
+            {'status': 'En préparation', 'at': '13 sept., 09:30'},
+            {
+              'status': 'Prête à retirer',
+              'at': '13 sept., 14:10',
+              'comment': 'Showroom Médina'
+            },
+            {
+              'status': 'Livrée',
+              'at': '14 sept., 11:45',
+              'comment': 'Retirée et payée en showroom'
+            },
+          ],
           'items': [_orderItem('p-003')],
         },
       ];
@@ -141,7 +181,7 @@ class MockHttpClient extends http.BaseClient {
     if (request.method == 'GET' && path == '/api/v1/categories') {
       return _json(request, 200, {'data': mockCategories});
     }
-    if (request.method == 'GET' && path == '/api/v1/account/summary')
+    if (request.method == 'GET' && path == '/api/v1/account/summary') {
       return _json(request, 200, {
         'data': {
           'name': 'Aissatou Diop',
@@ -154,26 +194,63 @@ class MockHttpClient extends http.BaseClient {
           }
         }
       });
-    if (request.method == 'GET' && path == '/api/v1/orders')
+    }
+    if (request.method == 'GET' && path == '/api/v1/orders') {
+      // Orders placed before instant digital delivery existed.
+      if (_orders.map(_deliverDigital).toList().contains(true)) {
+        await _saveOrders();
+      }
       return _json(request, 200, {'data': _orders});
+    }
+    final orderRoute =
+        RegExp(r'^/api/v1/orders/([^/]+)(/cancel)?$').firstMatch(path);
+    if (orderRoute != null) {
+      final number = Uri.decodeComponent(orderRoute.group(1)!);
+      final order = _orders.where((o) => o['number'] == number).firstOrNull;
+      if (order == null) {
+        return _json(request, 404,
+            {'code': 'ORDER_NOT_FOUND', 'message': 'Commande introuvable.'});
+      }
+      if (request.method == 'GET' && orderRoute.group(2) == null) {
+        return _json(request, 200, {'data': _orderDetail(order)});
+      }
+      if (request.method == 'POST' && orderRoute.group(2) != null) {
+        if (!_cancellable(order)) {
+          return _json(request, 409, {
+            'code': 'ORDER_NOT_CANCELLABLE',
+            'message': 'Cette commande ne peut plus être annulée.'
+          });
+        }
+        order['status'] = 'Annulée';
+        order['events'] = [
+          ..._events(order),
+          {'status': 'Annulée', 'at': _nowLabel(), 'comment': 'Par vous'},
+        ];
+        await _saveOrders();
+        return _json(request, 200, {'data': _orderDetail(order)});
+      }
+    }
 
-    if (request.method == 'GET' && path == '/api/v1/cart')
+    if (request.method == 'GET' && path == '/api/v1/cart') {
       return _json(request, 200, {'data': _cart()});
+    }
     if (request.method == 'POST' && path == '/api/v1/checkout') {
-      if (_cartItems.isEmpty)
+      if (_cartItems.isEmpty) {
         return _json(
             request, 422, {'code': 'empty_cart', 'message': 'Cart is empty'});
+      }
       final body =
           jsonDecode((request as http.Request).body) as Map<String, dynamic>;
       final method =
           DeliveryMethod.fromCode(body['deliveryMethodCode'] as String?);
       final zoneId = body['zoneId'] as String? ?? defaultZoneId;
       final payment = PaymentMethod.fromCode(body['paymentMethod'] as String?);
-      if (payment == null || !payment.available)
+      if (payment == null || !payment.available) {
         return _json(request, 422, {
           'code': 'payment_unavailable',
           'message': 'Payment method not available yet'
         });
+      }
       final subtotal = _cart()['subtotalXof'] as int;
       final totals = calculateCheckoutTotals(
           subtotal, method, zoneId, body['promoCode'] as String? ?? '');
@@ -182,16 +259,18 @@ class MockHttpClient extends http.BaseClient {
       // site; whatever is left is paid with [payment].
       final guest = body['customerType'] == 'GUEST';
       final requestedPoints = (body['pointsToUse'] as num?)?.toInt() ?? 0;
-      if (guest && requestedPoints > 0)
+      if (guest && requestedPoints > 0) {
         return _json(request, 422, {
           'code': 'ACCOUNT_REQUIRED',
           'message': 'Les points LO+ nécessitent un compte.'
         });
-      if (requestedPoints < 0 || requestedPoints > member.points)
+      }
+      if (requestedPoints < 0 || requestedPoints > member.points) {
         return _json(request, 422, {
           'code': 'INSUFFICIENT_POINTS',
           'message': 'Solde de points insuffisant.'
         });
+      }
       // Up to the whole order, at least 10 points (CFG.ptsPaiementMin).
       final pointsUsed = requestedPoints
           .clamp(0, redeemablePoints(member.points, totals.totalXof))
@@ -213,8 +292,9 @@ class MockHttpClient extends http.BaseClient {
           totals.subtotalXof - totals.promoDiscountXof - pointsDiscount,
           'BLEU');
       if (!guest) member.spendPoints(pointsUsed, orderNumber);
-      if (giftApplied > 0)
+      if (giftApplied > 0) {
         member.debitGiftCard(giftCode, giftApplied, orderNumber);
+      }
       // Guests earn nothing (no LO+ account to credit).
       if (!guest) member.creditPendingPoints(pointsToEarn, orderNumber);
       // Trackable right away with its number + the checkout phone.
@@ -240,10 +320,16 @@ class MockHttpClient extends http.BaseClient {
         'items': [
           for (final item in _cartItems)
             {
+              'productId': item['productId'],
               'name': item['name'],
               'imageUrl': item['imageUrl'],
               'categoryId': item['categoryId'],
+              'quantity': item['quantity'],
+              'unitPriceXof': item['unitPriceXof'],
             }
+        ],
+        'events': [
+          {'status': 'Confirmée', 'at': _nowLabel()},
         ],
         'zoneId': zoneId,
         'paymentMethod': payment.code,
@@ -254,6 +340,7 @@ class MockHttpClient extends http.BaseClient {
         if ((body['address'] as String? ?? '').trim().isNotEmpty)
           'address': (body['address'] as String).trim(),
       };
+      _deliverDigital(order);
       // "Mes commandes" lists the member's orders only.
       if (!guest) {
         _orders.insert(0, order);
@@ -272,9 +359,10 @@ class MockHttpClient extends http.BaseClient {
           .firstWhere((item) => item['id'] == body['productId']);
       final productId = product['id'] as String;
       final quantity = (body['quantity'] as num?)?.toInt() ?? 1;
-      if (quantity < 1 || quantity > 99)
+      if (quantity < 1 || quantity > 99) {
         return _json(request, 422,
             {'code': 'INVALID_QUANTITY', 'message': 'Quantité invalide.'});
+      }
       final addonIds = ((body['addonIds'] as List<dynamic>?) ?? const [])
           .cast<String>()
           .toList()
@@ -291,9 +379,10 @@ class MockHttpClient extends http.BaseClient {
             .cast<Map<String, dynamic>>()
             .where((c) => c['id'] == choiceId)
             .firstOrNull;
-        if (choice == null)
+        if (choice == null) {
           return _json(request, 422,
               {'code': 'INVALID_OPTION', 'message': 'Option indisponible.'});
+        }
         chosen.add(choice);
       }
       final unitPrice = (product['priceXof'] as int) +
@@ -307,7 +396,7 @@ class MockHttpClient extends http.BaseClient {
       ].join('_');
       final existing =
           _cartItems.where((item) => item['id'] == lineId).toList();
-      if (existing.isEmpty)
+      if (existing.isEmpty) {
         _cartItems.add({
           'id': lineId,
           'productId': productId,
@@ -325,71 +414,109 @@ class MockHttpClient extends http.BaseClient {
           'addonIds': addonIds,
           'options': requested,
         });
-      else
+      } else {
         existing.first['quantity'] =
             (existing.first['quantity'] as int) + quantity;
+      }
       await _saveCart();
       return _json(request, 200, {'data': _cart()});
     }
     if (path.startsWith('/api/v1/cart/items/')) {
       final id = path.substring('/api/v1/cart/items/'.length);
       final item = _cartItems.where((value) => value['id'] == id).toList();
-      if (item.isEmpty)
+      if (item.isEmpty) {
         return _json(request, 404,
             {'code': 'not_found', 'message': 'Cart item not found'});
+      }
       if (request.method == 'DELETE') _cartItems.remove(item.first);
       if (request.method == 'PATCH') {
         final body =
             jsonDecode((request as http.Request).body) as Map<String, dynamic>;
         final quantity = body['quantity'] as int;
-        if (quantity < 1)
+        if (quantity < 1) {
           _cartItems.remove(item.first);
-        else
+        } else {
           item.first['quantity'] = quantity;
+        }
       }
       await _saveCart();
       return _json(request, 200, {'data': _cart()});
     }
 
+    final reviewRoute =
+        RegExp(r'^/api/v1/products/([^/]+)/reviews$').firstMatch(path);
+    if (request.method == 'POST' && reviewRoute != null) {
+      final body = jsonDecode(bodyText) as Map<String, dynamic>;
+      final productId = reviewRoute.group(1)!;
+      final review = {
+        'id': '$productId-user-${DateTime.now().millisecondsSinceEpoch}',
+        'author': body['author'],
+        'rating': body['rating'],
+        'comment': body['comment'],
+        'verified': false,
+      };
+      (_userReviews[productId] ??= []).insert(0, review);
+      return _json(request, 201, {'data': review});
+    }
+
     if (request.method == 'GET' && path.startsWith('/api/v1/products/')) {
       final id = path.substring('/api/v1/products/'.length);
       final matches = mockProducts.where((product) => product['id'] == id);
-      if (matches.isEmpty)
+      if (matches.isEmpty) {
         return _json(request, 404,
             {'code': 'not_found', 'message': 'Product not found'});
+      }
       final product = matches.first;
+      final digital = digitalCatalog[id];
       return _json(request, 200, {
         'data': {
           ...product,
-          'description':
-              'Produit original sélectionné par LO Multimédia, avec garantie constructeur et facture.',
+          'description': digital != null
+              ? 'Produit numérique officiel. Votre ${digital.platform == DigitalPlatform.windows ? 'clé de licence' : 'code de jeu'} '
+                  's’affiche dans l’application (Compte › Mes codes) dès le paiement confirmé : '
+                  'aucun déplacement en boutique.'
+              : 'Produit original sélectionné par LO Multimédia, avec garantie constructeur et facture.',
           'images': product['images'] ??
               [if (product['imageUrl'] != null) product['imageUrl']],
-          'specifications': {
-            'Marque': product['brand'] as String,
-            'Disponibilité':
-                product['inStock'] == true ? 'En stock' : 'Rupture de stock',
-            'Garantie': '12 mois'
-          },
+          'specifications': digital != null
+              ? {
+                  'Plateforme': digital.platform == DigitalPlatform.windows
+                      ? 'PC Windows'
+                      : digital.edition.split(' · ').last,
+                  'Édition': digital.edition.split(' · ').first,
+                  'Région': digital.region,
+                  'Activation': digital.activation,
+                  if (digital.licenseType != null)
+                    'Licence': '${digital.licenseType} · ${digital.devices} PC',
+                  'Livraison': 'Numérique immédiate dans l’app',
+                }
+              : {
+                  'Marque': product['brand'] as String,
+                  'Disponibilité': product['inStock'] == true
+                      ? 'En stock'
+                      : 'Rupture de stock',
+                  'Garantie': '12 mois'
+                },
           'optionGroups': optionGroupsFor(id),
           'addons': accessoriesFor(id),
           'reviews': [
+            ...?_userReviews[id],
             {
-              'id': '${id}-review-1',
+              'id': '$id-review-1',
               'author': 'Aissatou D.',
               'rating': 5,
               'comment': 'Très bon produit et livraison rapide.',
               'verified': true
             },
             {
-              'id': '${id}-review-2',
+              'id': '$id-review-2',
               'author': 'Moussa N.',
               'rating': 4,
               'comment': 'Conforme à la description, bon rapport qualité-prix.',
               'verified': true
             },
             {
-              'id': '${id}-review-3',
+              'id': '$id-review-3',
               'author': 'Fatou S.',
               'rating': 5,
               'comment':
@@ -463,12 +590,126 @@ class MockHttpClient extends http.BaseClient {
       persistence?.write('mock_cart_items', jsonEncode(_cartItems)) ??
       Future<void>.value();
 
+  /// Reviews posted from the app, newest first, per product id.
+  final Map<String, List<Map<String, dynamic>>> _userReviews = {};
+
   Future<void> _saveMemberState() =>
       persistence?.write(
         'mock_member_state',
         jsonEncode(member.exportState()),
       ) ??
       Future<void>.value();
+
+  /// Mirrors the ERP's « annulable »: until the order leaves for delivery.
+  /// Orders of licences / game codes only: the codes are delivered in the
+  /// app as soon as the order is placed, so the order is « Livrée » right
+  /// away (no preparation nor shipping). Returns true when [order] changed.
+  bool _deliverDigital(Map<String, dynamic> order) {
+    final items = (order['items'] as List<dynamic>? ?? const [])
+        .cast<Map<String, dynamic>>();
+    final status = (order['status'] as String).toLowerCase();
+    if (items.isEmpty ||
+        !items.every((i) => digitalCatalog.containsKey(i['productId'])) ||
+        status.contains('livr') ||
+        status.contains('annul')) {
+      return false;
+    }
+    final at = _events(order).first['at'] ?? _nowLabel();
+    order['status'] = 'Livrée';
+    order['digital'] = true;
+    order.remove('deliveryMethodCode');
+    order['deliveryFeeXof'] = 0;
+    order['deliveryInfo'] =
+        'Livraison numérique · codes disponibles dans Mes codes';
+    order['events'] = [
+      {'status': 'Confirmée', 'at': at},
+      {'status': 'Paiement confirmé', 'at': at},
+      {
+        'status': 'Livrée',
+        'at': at,
+        'comment': 'Codes livrés dans l’application (Compte › Mes codes)'
+      },
+    ];
+    return true;
+  }
+
+  bool _cancellable(Map<String, dynamic> order) {
+    final status = (order['status'] as String).toLowerCase();
+    return !['annul', 'route', 'expédi', 'prête', 'livr'].any(status.contains);
+  }
+
+  /// Status history; orders saved before it existed get a single entry.
+  List<Map<String, dynamic>> _events(Map<String, dynamic> order) =>
+      (order['events'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ??
+      [
+        {'status': order['status'], 'at': order['createdAt']}
+      ];
+
+  static const _months = [
+    'janv.',
+    'févr.',
+    'mars',
+    'avr.',
+    'mai',
+    'juin',
+    'juil.',
+    'août',
+    'sept.',
+    'oct.',
+    'nov.',
+    'déc.'
+  ];
+
+  static String _nowLabel() {
+    final now = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${now.day} ${_months[now.month - 1]}, '
+        '${two(now.hour)}:${two(now.minute)}';
+  }
+
+  Map<String, dynamic> _orderDetail(Map<String, dynamic> order) {
+    final items = [
+      for (final item in (order['items'] as List<dynamic>? ?? const [])
+          .cast<Map<String, dynamic>>())
+        {
+          ...item,
+          // Orders saved before lines kept their product: found by name
+          // (the cart name starts with the product name).
+          'productId': item['productId'] ??
+              mockProducts
+                  .where((p) =>
+                      (item['name'] as String).startsWith(p['name'] as String))
+                  .firstOrNull?['id'],
+        }
+    ];
+    final fee = (order['deliveryFeeXof'] as num?)?.toInt() ?? 0;
+    final linesTotal = items.fold<int>(
+        0,
+        (sum, i) =>
+            sum +
+            ((i['unitPriceXof'] as num?)?.toInt() ?? 0) *
+                ((i['quantity'] as num?)?.toInt() ?? 1));
+    final method =
+        DeliveryMethod.fromCode(order['deliveryMethodCode'] as String?);
+    final payment = PaymentMethod.fromCode(order['paymentMethod'] as String?) ??
+        PaymentMethod.cashOnDelivery;
+    final status = (order['status'] as String).toLowerCase();
+    return {
+      ...order,
+      'items': items,
+      'events': _events(order),
+      'subtotalXof':
+          linesTotal > 0 ? linesTotal : (order['totalXof'] as int) - fee,
+      'deliveryFeeXof': fee,
+      'deliveryLabel':
+          order['digital'] == true ? 'Livraison numérique' : method.label,
+      if (method == DeliveryMethod.pickup && order['address'] == null)
+        'address': 'Showroom Sandaga, avenue Lamine Guèye',
+      'paymentLabel': payment.label,
+      'paid': payment.isOnline || status.contains('livr'),
+      'cancellable': _cancellable(order),
+    };
+  }
 
   Map<String, dynamic> _cart() {
     final subtotal = _cartItems.fold<int>(

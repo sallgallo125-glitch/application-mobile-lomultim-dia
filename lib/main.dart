@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lottie/lottie.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'features/persistence.dart';
 import 'navigation/app_router.dart';
 import 'theme/tokens.dart';
 import 'widgets/card_faces.dart';
+import 'widgets/splash_overlay.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,15 +17,22 @@ Future<void> main() async {
   await persistence.migrateFrom(prefs);
   runApp(ProviderScope(
     overrides: [localPersistenceProvider.overrideWithValue(persistence)],
-    child: const LoMultimediaApp(),
+    child: const LoMultimediaApp(showSplash: true),
   ));
+  // Warm Lottie's cache so the empty-cart animation shows at once.
+  AssetLottie('assets/animations/empty_cart.json').load().ignore();
 }
 
 class LoMultimediaApp extends StatelessWidget {
-  const LoMultimediaApp({super.key, this.useGoogleFonts = true});
+  const LoMultimediaApp(
+      {super.key, this.useGoogleFonts = true, this.showSplash = false});
 
   /// Tests pass false: they have no network to download the fonts.
   final bool useGoogleFonts;
+
+  /// Animated launch screen over the first page; only the real app start
+  /// turns it on, so tests land straight on the home page.
+  final bool showSplash;
 
   @override
   Widget build(BuildContext context) {
@@ -66,10 +75,26 @@ class LoMultimediaApp extends StatelessWidget {
           error: AppColors.danger,
           onError: AppColors.white,
           surface: AppColors.white,
+          // Material 3 tints these bluish-grey from the seed: pure white
+          // everywhere (dialogs, menus, sheets, navigation bar).
+          surfaceContainerLowest: AppColors.white,
+          surfaceContainerLow: AppColors.white,
+          surfaceContainer: AppColors.white,
+          surfaceContainerHigh: AppColors.white,
+          surfaceContainerHighest: AppColors.white,
+          surfaceTint: Colors.transparent,
           onSurface: AppColors.text,
           onSurfaceVariant: AppColors.textSecondary,
           outline: AppColors.border,
           outlineVariant: AppColors.border,
+        ),
+        dialogTheme: const DialogThemeData(
+          backgroundColor: AppColors.white,
+          surfaceTintColor: Colors.transparent,
+        ),
+        bottomSheetTheme: const BottomSheetThemeData(
+          backgroundColor: AppColors.white,
+          surfaceTintColor: Colors.transparent,
         ),
         cardTheme: const CardThemeData(
           color: AppColors.white,
@@ -111,17 +136,48 @@ class LoMultimediaApp extends StatelessWidget {
           data: media.copyWith(textScaler: textScaler),
           // On tablets / landscape / web, keep the phone-first layout at a
           // readable width instead of stretching it edge to edge.
-          child: ColoredBox(
-            color: AppColors.background,
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: kMaxContentWidth),
-                child: child,
+          child: _SplashGate(
+            enabled: showSplash,
+            child: ColoredBox(
+              color: AppColors.background,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints:
+                      const BoxConstraints(maxWidth: kMaxContentWidth),
+                  child: child,
+                ),
               ),
             ),
           ),
         );
       },
+    );
+  }
+}
+
+/// Lays [SplashOverlay] over the app until it has played once.
+class _SplashGate extends StatefulWidget {
+  const _SplashGate({required this.enabled, required this.child});
+
+  final bool enabled;
+  final Widget child;
+
+  @override
+  State<_SplashGate> createState() => _SplashGateState();
+}
+
+class _SplashGateState extends State<_SplashGate> {
+  late bool _visible = widget.enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        widget.child,
+        if (_visible)
+          SplashOverlay(onDone: () => setState(() => _visible = false)),
+      ],
     );
   }
 }

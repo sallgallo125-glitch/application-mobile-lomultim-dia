@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../contracts/product.dart';
+import '../../features/catalog/catalog_providers.dart';
 import '../../theme/tokens.dart';
 import '../../utils/currency.dart';
 import 'product_image.dart';
@@ -82,6 +83,9 @@ class _ProductCardWidgetState extends State<ProductCardWidget> {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: widget.onPressed == null ? null : () => widget.onPressed!(product),
+          onTapDown: widget.onPressed == null
+              ? null
+              : (_) => prefetchProduct(context, product.id),
           onHover: (hovered) {
             if (mounted && _isHovered != hovered) {
               setState(() => _isHovered = hovered);

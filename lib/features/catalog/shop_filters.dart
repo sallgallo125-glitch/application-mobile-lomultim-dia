@@ -133,10 +133,14 @@ List<ProductSummary> applyShopFilters(
 }
 
 /// Shop filters, kept on the device between visits and launches.
-final shopFiltersProvider = StateProvider<ShopFilterState>((ref) {
+final shopFiltersProvider =
+    StateNotifierProvider<StateController<ShopFilterState>, ShopFilterState>(
+        (ref) {
   const key = 'shop_filters';
-  ref.listenSelf((_, next) => writeStored(ref, key, next.toJson()));
-  return readStored(ref, key,
+  final controller = StateController<ShopFilterState>(readStored(ref, key,
           (json) => ShopFilterState.fromJson(json as Map<String, dynamic>)) ??
-      const ShopFilterState();
+      const ShopFilterState());
+  controller.addListener((next) => writeStored(ref, key, next.toJson()),
+      fireImmediately: false);
+  return controller;
 });

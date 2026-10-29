@@ -19,6 +19,9 @@ import '../utils/currency.dart';
 /// Card aspect ratio from the site's mock-ups (1540 × 960).
 const double _cardAspect = 1540 / 960;
 
+/// Same width, about 6 % less tall (Lo+ page).
+const double loyaltyCardCompactAspect = _cardAspect * 1.06;
+
 /// The site uses Lato 300. Tests turn Google Fonts off (no network).
 bool cardFacesUseGoogleFonts = true;
 
@@ -47,11 +50,15 @@ class _CardFrame extends StatelessWidget {
       {required this.semanticsLabel,
       required this.decoration,
       required this.builder,
-      this.maxWidth = 440});
+      this.maxWidth = 440,
+      this.aspect = _cardAspect});
   final String semanticsLabel;
   final BoxDecoration decoration;
   final List<Widget> Function(double w, double h, double cqw) builder;
   final double maxWidth;
+
+  /// Width / height; the background image is cropped to fit.
+  final double aspect;
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +70,7 @@ class _CardFrame extends StatelessWidget {
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: maxWidth),
             child: AspectRatio(
-              aspectRatio: _cardAspect,
+              aspectRatio: aspect,
               child: LayoutBuilder(builder: (context, c) {
                 final w = c.maxWidth;
                 final h = c.maxHeight;
@@ -123,6 +130,7 @@ class LoyaltyCardFace extends StatelessWidget {
     required this.tierCode,
     this.blocked = false,
     this.maxWidth = 440,
+    this.aspect = _cardAspect,
   });
 
   final String cardNumber;
@@ -131,12 +139,14 @@ class LoyaltyCardFace extends StatelessWidget {
   final String tierCode;
   final bool blocked;
   final double maxWidth;
+  final double aspect;
 
   @override
   Widget build(BuildContext context) {
     final pill = _tierPills[tierCode] ?? _tierPills['BLEU']!;
     Widget face = _CardFrame(
       maxWidth: maxWidth,
+      aspect: aspect,
       semanticsLabel:
           'Carte de fidélité LO+ ${pill.$2} n° $cardNumber, $memberName${points == null ? '' : ', ${_spaced(points!)} points'}',
       decoration: const BoxDecoration(
@@ -493,6 +503,7 @@ class FlippableLoyaltyCard extends StatelessWidget {
     required this.tierCode,
     this.blocked = false,
     this.maxWidth = 440,
+    this.aspect = _cardAspect,
   });
 
   final String cardNumber;
@@ -501,6 +512,7 @@ class FlippableLoyaltyCard extends StatelessWidget {
   final String tierCode;
   final bool blocked;
   final double maxWidth;
+  final double aspect;
 
   @override
   Widget build(BuildContext context) => FlipCard(
@@ -510,9 +522,13 @@ class FlippableLoyaltyCard extends StatelessWidget {
             points: points,
             tierCode: tierCode,
             blocked: blocked,
-            maxWidth: maxWidth),
+            maxWidth: maxWidth,
+            aspect: aspect),
         back: LoyaltyCardBack(
-            cardNumber: cardNumber, memberName: memberName, maxWidth: maxWidth),
+            cardNumber: cardNumber,
+            memberName: memberName,
+            maxWidth: maxWidth,
+            aspect: aspect),
       );
 }
 
@@ -581,11 +597,13 @@ class LoyaltyCardBack extends StatelessWidget {
     required this.cardNumber,
     required this.memberName,
     this.maxWidth = 440,
+    this.aspect = _cardAspect,
   });
 
   final String cardNumber;
   final String memberName;
   final double maxWidth;
+  final double aspect;
 
   static const conditions =
       'Carte personnelle LO+ : présentez-la ou son QR code en caisse pour '
@@ -595,55 +613,64 @@ class LoyaltyCardBack extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _CardFrame(
         maxWidth: maxWidth,
+        aspect: aspect,
         semanticsLabel: 'Verso de la carte LO+, numéro $cardNumber',
         decoration: const BoxDecoration(
           image: DecorationImage(
               image: AssetImage('assets/lo-plus/fond-carte-fidelite.jpg'),
               fit: BoxFit.cover),
         ),
-        builder: (w, h, cqw) => [
-          Positioned(
-            left: .05 * w,
-            top: .30 * h,
-            width: .30 * w,
-            height: .30 * w,
-            child: Container(
-              padding: EdgeInsets.all(1.6 * cqw),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(2 * cqw),
-              ),
-              child: QrImageView(
-                data: 'LOPLUS:${cardNumber.replaceAll(' ', '')}',
-                padding: EdgeInsets.zero,
-                backgroundColor: Colors.white,
+        builder: (w, h, cqw) {
+          // The QR code is capped by the card's height so it never reaches
+          // the conditions, whatever the aspect ratio.
+          final qr = math.min(.30 * w, .46 * h);
+          return [
+            Positioned(
+              left: .05 * w,
+              top: .24 * h,
+              width: qr,
+              height: qr,
+              child: Container(
+                padding: EdgeInsets.all(1.6 * cqw),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(2 * cqw),
+                ),
+                child: QrImageView(
+                  data: 'LOPLUS:${cardNumber.replaceAll(' ', '')}',
+                  padding: EdgeInsets.zero,
+                  backgroundColor: Colors.white,
+                ),
               ),
             ),
-          ),
-          Positioned(
-            left: .40 * w,
-            right: .05 * w,
-            top: .31 * h,
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('N° DE CARTE', style: _lato(2.6 * cqw, letterSpacing: .04)),
-              Text(cardNumber, style: _lato(5 * cqw, letterSpacing: .02)),
-              SizedBox(height: 1.4 * cqw),
-              Text('TITULAIRE', style: _lato(2.6 * cqw, letterSpacing: .04)),
-              Text(memberName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: _lato(3.8 * cqw)),
-            ]),
-          ),
-          Positioned(
-            left: .05 * w,
-            right: .05 * w,
-            top: .80 * h,
-            child: Text(conditions,
-                style: _lato(2 * cqw, weight: FontWeight.w400)),
-          ),
-        ],
+            Positioned(
+              left: .40 * w,
+              right: .05 * w,
+              top: .26 * h,
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('N° DE CARTE',
+                        style: _lato(2.6 * cqw, letterSpacing: .04)),
+                    Text(cardNumber, style: _lato(5 * cqw, letterSpacing: .02)),
+                    SizedBox(height: 1.4 * cqw),
+                    Text('TITULAIRE',
+                        style: _lato(2.6 * cqw, letterSpacing: .04)),
+                    Text(memberName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _lato(3.8 * cqw)),
+                  ]),
+            ),
+            Positioned(
+              left: .05 * w,
+              right: .05 * w,
+              top: .80 * h,
+              child: Text(conditions,
+                  style: _lato(2 * cqw, weight: FontWeight.w400)),
+            ),
+          ];
+        },
       );
 }
 

@@ -295,17 +295,22 @@ class _TicketCard extends StatelessWidget {
                       Text(number, style: AppText.caption),
                     ])),
                 const SizedBox(width: AppSpacing.sm),
-                Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm, vertical: 3),
-                    decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(AppRadii.pill)),
-                    child: Text(status,
-                        style: TextStyle(
-                            color: color,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700))),
+                // Shrinks (ellipsis) on narrow phones with large text.
+                Flexible(
+                  child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm, vertical: 3),
+                      decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(AppRadii.pill)),
+                      child: Text(status,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              color: color,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700))),
+                ),
               ]),
               if (reached >= 0) ...[
                 const SizedBox(height: AppSpacing.md),

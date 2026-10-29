@@ -7,7 +7,7 @@ import '../contracts/product.dart';
 import '../features/catalog/catalog_providers.dart';
 import '../features/catalog/shop_filters.dart';
 import '../features/customer/customer_providers.dart';
-import '../screens/boutique_screen.dart' show shopOpenedFromHomeProvider;
+import '../features/digital/digital_catalog.dart';
 import '../theme/tokens.dart';
 import 'commerce/product_rail.dart';
 import 'section_header.dart';
@@ -17,7 +17,6 @@ void _openShop(BuildContext context, WidgetRef ref,
     ShopFilterState Function(ShopFilterState) update) {
   ref.read(shopFiltersProvider.notifier).state =
       update(const ShopFilterState());
-  ref.read(shopOpenedFromHomeProvider.notifier).state = true;
   context.go('/boutique');
 }
 
@@ -184,6 +183,124 @@ class HomeRecentlyViewed extends ConsumerWidget {
         const SectionHeader(title: 'Vus récemment'),
         const SizedBox(height: AppSpacing.sm),
         ProductRail(products: recent),
+      ],
+    );
+  }
+}
+
+/// Licences Windows and game codes: the code is delivered in the app right
+/// after payment (Compte › Mes codes), no trip to the shop.
+class HomeDigitalCodes extends ConsumerWidget {
+  const HomeDigitalCodes({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final List<ProductSummary> products = [
+      for (final p in ref.watch(productsProvider).value ?? const [])
+        if (digitalCatalog.containsKey(p.id)) p
+    ];
+    if (products.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeader(
+            title: 'Licences & jeux',
+            actionLabel: 'Mes codes →',
+            onActionPressed: () => context.push('/mes-codes')),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg, 2, AppSpacing.lg, AppSpacing.sm),
+          child: Row(children: [
+            const Icon(Icons.bolt_rounded, size: 16, color: AppColors.success),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                  'Code reçu dans l’app dès le paiement, sans déplacement.',
+                  style: AppText.caption.copyWith(fontSize: 13)),
+            ),
+          ]),
+        ),
+        ProductRail(products: products),
+      ],
+    );
+  }
+}
+
+/// "Pourquoi LO Multimédia": four reasons to trust the shop.
+class HomeWhyUs extends StatelessWidget {
+  const HomeWhyUs({super.key});
+
+  static const _reasons = [
+    (
+      Icons.verified_outlined,
+      'Produits originaux',
+      'Garantie constructeur et facture'
+    ),
+    (
+      Icons.account_balance_wallet_outlined,
+      'Paiement facile',
+      'Wave, Orange Money ou à la livraison'
+    ),
+    (
+      Icons.local_shipping_outlined,
+      'Livraison à Dakar',
+      'En 24 – 48 h, ou retrait en showroom'
+    ),
+    (
+      Icons.storefront_outlined,
+      'Depuis 2011',
+      '2 showrooms : Sandaga & Médina'
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeader(title: 'Pourquoi LO Multimédia'),
+        const SizedBox(height: AppSpacing.sm),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          child: LayoutBuilder(builder: (context, constraints) {
+            final width = (constraints.maxWidth - AppSpacing.sm) / 2;
+            return Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final (icon, title, detail) in _reasons)
+                  Container(
+                    width: width,
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.circular(AppRadii.md),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                              color: AppColors.primarySoft,
+                              borderRadius: BorderRadius.circular(AppRadii.sm)),
+                          child: Icon(icon, size: 19, color: AppColors.primary),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(title,
+                            style: const TextStyle(
+                                fontSize: 13.5, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 2),
+                        Text(detail, style: AppText.caption),
+                      ],
+                    ),
+                  ),
+              ],
+            );
+          }),
+        ),
       ],
     );
   }

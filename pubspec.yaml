@@ -38,9 +38,11 @@ flutter:
     - assets/images/logo.png
     - assets/images/Panier 3D blanc avec logo LM.png
     - assets/animations/
+    - assets/splash/
     - assets/brands/
     - assets/lo-plus/
     - assets/products/
+    - assets/licencejeux/
     - assets/banners/
     - assets/categories/
     - assets/paiement/

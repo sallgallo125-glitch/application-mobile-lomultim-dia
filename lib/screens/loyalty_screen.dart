@@ -16,11 +16,8 @@ import '../widgets/header_actions.dart';
 import '../widgets/loading_state.dart';
 import '../widgets/nav_clearance.dart';
 
-/// Pale blue-grey tiles and cards on the white page.
-const _mist = Color(0xFFF1F3F9);
-
-/// Light text on the blue band (contrast > 7:1 on primaryDark).
-const _onBand = Color(0xFFDDE2F5);
+/// Secondary text in the white page header.
+const _onBand = AppColors.textSecondary;
 
 class LoyaltyScreen extends ConsumerWidget {
   const LoyaltyScreen({super.key, this.backTo});
@@ -34,9 +31,9 @@ class LoyaltyScreen extends ConsumerWidget {
     final summary = ref.watch(accountSummaryProvider);
     final onBack = backTo == null ? null : () => context.go('/$backTo');
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: SystemUiOverlayStyle.dark,
       child: Scaffold(
-        backgroundColor: AppColors.primaryDark,
+        backgroundColor: AppColors.white,
         body: RedesignFonts(
             child: SafeArea(
           bottom: false,
@@ -63,7 +60,7 @@ class LoyaltyScreen extends ConsumerWidget {
   }
 }
 
-/// Blue band opening the page: the LO+ mark with a subtitle, the bell, and
+/// White header opening the page: the LO+ mark with a subtitle, the bell, and
 /// [extra] below; [overlap] (the card) straddles its lower edge, reaching
 /// [overlapHeight] up into the blue.
 class _Band extends StatelessWidget {
@@ -84,7 +81,7 @@ class _Band extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            color: AppColors.primaryDark,
+            color: AppColors.white,
             padding: EdgeInsets.fromLTRB(
                 onBack == null ? AppSpacing.lg : AppSpacing.xs,
                 AppSpacing.xs,
@@ -97,7 +94,7 @@ class _Band extends StatelessWidget {
                   if (onBack != null)
                     Padding(
                       padding: const EdgeInsets.only(right: AppSpacing.sm),
-                      child: AppBackButton(onPressed: onBack!, onDark: true),
+                      child: AppBackButton(onPressed: onBack!),
                     ),
                   Expanded(
                     child: Semantics(
@@ -107,21 +104,9 @@ class _Band extends StatelessWidget {
                       child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text.rich(
-                              const TextSpan(children: [
-                                TextSpan(text: 'LO'),
-                                TextSpan(
-                                    text: '+',
-                                    style:
-                                        TextStyle(color: AppColors.goldOnDark)),
-                              ]),
-                              style: displayFont(const TextStyle(
-                                  color: AppColors.white,
-                                  fontSize: 30,
-                                  height: 1.1,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.6)),
-                            ),
+                            Text('LO+',
+                                style: displayFont(AppText.pageTitle
+                                    .copyWith(letterSpacing: -0.2))),
                             Text(subtitle,
                                 style: const TextStyle(
                                     color: _onBand,
@@ -146,9 +131,9 @@ class _Band extends StatelessWidget {
                 left: 0,
                 right: 0,
                 height: overlapHeight,
-                child: const ColoredBox(color: AppColors.primaryDark)),
+                child: const ColoredBox(color: AppColors.white)),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
               child: Center(child: overlap),
             ),
           ]),
@@ -172,22 +157,22 @@ class _GuestContent extends StatelessWidget {
             overlapHeight: 80,
             extra: Padding(
               padding: const EdgeInsets.only(top: 18, bottom: AppSpacing.lg),
-              child: SizedBox(
-                width: 260,
-                child: Text('Vos achats vous font monter',
-                    style: displayFont(const TextStyle(
-                        color: AppColors.white,
-                        fontSize: 40,
-                        height: 1,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.8))),
-              ),
+              child: Text(
+                  '1 point tous les ${formatXof(loyaltyTrancheXof)} '
+                  'd’achat, en ligne ou en showroom',
+                  style: displayFont(const TextStyle(
+                      color: AppColors.primaryDark,
+                      fontSize: 22,
+                      height: 1.2,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.3))),
             ),
             overlap: const LoyaltyCardFace(
               cardNumber: '2026 •••• ••••',
               memberName: 'Votre nom ici',
               points: null,
               tierCode: 'BLEU',
+              aspect: loyaltyCardCompactAspect,
             ),
           ),
           Padding(
@@ -197,9 +182,8 @@ class _GuestContent extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                    'Chaque achat chez LO Multimédia, en ligne ou en showroom, '
-                    'vous rapporte des points et vous rapproche du palier '
-                    'suivant.',
+                    'Vos points se dépensent en caisse ou en ligne, et plus '
+                    'vous achetez, plus votre palier vous en rapporte.',
                     style: AppText.bodyMuted),
                 const _SectionTitle('Les paliers'),
                 const _TierLadder(currentCode: null, spendXof: 0),
@@ -236,7 +220,7 @@ class _LoyaltyContent extends ConsumerWidget {
             subtitle: 'Membre ${tier.name}',
             onBack: onBack,
             overlapHeight: 104,
-            extra: const SizedBox(height: AppSpacing.lg),
+            extra: const SizedBox(height: AppSpacing.sm),
             // Tap to turn the card over ("Ma carte" opens the QR page).
             overlap: FlippableLoyaltyCard(
               cardNumber: member?.cardNumber ?? '•••• •••• ••••',
@@ -246,6 +230,7 @@ class _LoyaltyContent extends ConsumerWidget {
                   '',
               points: points,
               tierCode: loyalty.tierCode,
+              aspect: loyaltyCardCompactAspect,
             ),
           ),
           const Padding(
@@ -256,71 +241,36 @@ class _LoyaltyContent extends ConsumerWidget {
                     TextStyle(color: AppColors.textSecondary, fontSize: 12.5)),
           ),
           Padding(
-            padding:
-                const EdgeInsets.fromLTRB(AppSpacing.lg, 22, AppSpacing.lg, 0),
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Semantics(
-                  label: '$points points, valeur en caisse $value',
-                  excludeSemantics: true,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Expanded(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.bottomLeft,
-                          child: Text.rich(
-                            TextSpan(children: [
-                              TextSpan(text: '$points'),
-                              const TextSpan(
-                                  text: ' points',
-                                  style: TextStyle(
-                                      fontSize: 20,
-                                      letterSpacing: 0,
-                                      fontWeight: FontWeight.w700)),
-                            ]),
-                            style: displayFont(const TextStyle(
-                                color: AppColors.text,
-                                fontSize: 76,
-                                height: 0.95,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -2,
-                                fontFeatures: [FontFeature.tabularFigures()])),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                      Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            const Text('Valeur en caisse',
-                                style: TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 13.5)),
-                            Text(value,
-                                style: const TextStyle(
-                                    color: AppColors.text,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    fontFeatures: [
-                                      FontFeature.tabularFigures()
-                                    ])),
-                          ]),
-                    ],
-                  ),
+                // The card already shows the balance: one plain sentence
+                // says what it is worth.
+                Text.rich(
+                  TextSpan(children: [
+                    TextSpan(
+                        text: '$points points',
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                    TextSpan(
+                        text:
+                            ', soit $value à utiliser en caisse ou en ligne.'),
+                  ]),
+                  style: const TextStyle(
+                      color: AppColors.text, fontSize: 15, height: 1.45),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: AppSpacing.md),
+                // Plain rectangular buttons, rounded like the rest of the
+                // app: text only, no pill shape or icon.
                 Row(children: [
-                  _Tile(Icons.qr_code_2_rounded, 'Ma carte',
-                      () => context.push('/lo/carte')),
+                  Expanded(
+                      child: _PlainButton('Historique',
+                          () => context.push('/lo/historique'))),
                   const SizedBox(width: AppSpacing.sm),
-                  _Tile(Icons.history_rounded, 'Historique',
-                      () => context.push('/lo/historique')),
-                  const SizedBox(width: AppSpacing.sm),
-                  _Tile(Icons.group_add_outlined, 'Parrainer',
-                      () => context.push('/lo/parrainage')),
+                  Expanded(
+                      child: _PlainButton('Parrainer',
+                          () => context.push('/lo/parrainage'))),
                 ]),
                 const _SectionTitle('Vos paliers',
                     sub: 'Calculés sur vos achats des 12 derniers mois'),
@@ -328,28 +278,43 @@ class _LoyaltyContent extends ConsumerWidget {
                     currentCode: loyalty.tierCode,
                     spendXof: loyalty.spend12MonthsXof),
                 const _SectionTitle('Comment ça marche'),
-                _HowTo(
-                    '1 pt',
-                    'tous les ${formatXof(loyaltyTrancheXof)} d’achat, '
-                        'multiplié selon votre palier.'),
-                _HowTo(
-                    formatXof(loyaltyPointValueXof),
-                    'la valeur d’un point, utilisable dès '
-                    '$loyaltyMinRedeemPoints points en ligne ou en caisse.'),
-                const _HowTo('+50 pts',
-                    'pour chaque proche parrainé, et +20 points pour lui.'),
-                const SizedBox(height: AppSpacing.lg),
-                SizedBox(
-                  height: 52,
-                  child: ElevatedButton(
-                      onPressed: () => context.go('/boutique'),
-                      child: const Text('Gagner des points en boutique')),
-                ),
+                _HowTo('1 point tous les ${formatXof(loyaltyTrancheXof)} '
+                    'd’achat, multiplié selon votre palier.'),
+                _HowTo('1 point vaut ${formatXof(loyaltyPointValueXof)}, '
+                    'utilisable dès $loyaltyMinRedeemPoints points.'),
+                const _HowTo('50 points pour chaque proche parrainé, '
+                    'et 20 points pour lui.'),
               ],
             ),
           ),
         ]);
   }
+}
+
+class _PlainButton extends StatelessWidget {
+  const _PlainButton(this.label, this.onPressed);
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.text,
+          backgroundColor: AppColors.white,
+          // Light shadow; blue tint on press (and on hover with a mouse).
+          elevation: 1.5,
+          shadowColor: const Color(0x400F173C),
+          overlayColor: AppColors.primary,
+          minimumSize: const Size.fromHeight(48),
+          side: const BorderSide(color: AppColors.border),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadii.md)),
+          textStyle:
+              const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        child: Text(label),
+      );
 }
 
 class _SectionTitle extends StatelessWidget {
@@ -359,7 +324,8 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 28, bottom: AppSpacing.lg),
+        padding:
+            const EdgeInsets.only(top: AppSpacing.xl, bottom: AppSpacing.md),
         child: Semantics(
           header: true,
           child:
@@ -374,64 +340,24 @@ class _SectionTitle extends StatelessWidget {
       );
 }
 
-/// Grey shortcut tile under the balance.
-class _Tile extends StatelessWidget {
-  const _Tile(this.icon, this.label, this.onTap);
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Expanded(
-        child: Material(
-          color: _mist,
-          borderRadius: BorderRadius.circular(16),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
-              child: Column(children: [
-                Icon(icon, color: AppColors.primary, size: 24),
-                const SizedBox(height: 6),
-                Text(label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: AppColors.text,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600)),
-              ]),
-            ),
-          ),
-        ),
-      );
-}
-
-/// "Comment ça marche" card: a big blue figure and its explanation.
+/// One "Comment ça marche" rule, as a plain bulleted line.
 class _HowTo extends StatelessWidget {
-  const _HowTo(this.figure, this.text);
-  final String figure;
+  const _HowTo(this.text);
   final String text;
 
   @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-            color: _mist, borderRadius: BorderRadius.circular(18)),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 78),
-            child: Text(figure,
-                style: displayFont(const TextStyle(
-                    color: AppColors.primary,
-                    fontSize: 26,
-                    height: 1,
-                    fontWeight: FontWeight.w800,
-                    fontFeatures: [FontFeature.tabularFigures()]))),
+          const Padding(
+            padding: EdgeInsets.only(top: 8, right: AppSpacing.sm),
+            child: SizedBox.square(
+                dimension: 5,
+                child: DecoratedBox(
+                    decoration: BoxDecoration(
+                        color: AppColors.textSecondary,
+                        shape: BoxShape.circle))),
           ),
-          const SizedBox(width: 14),
           Expanded(
               child: Text(text,
                   style: const TextStyle(
@@ -440,7 +366,7 @@ class _HowTo extends StatelessWidget {
       );
 }
 
-/// White notifications bell for the blue band, with the unread count.
+/// Notifications bell for the white header, with the unread count.
 class _BellButton extends ConsumerWidget {
   const _BellButton();
 
@@ -455,7 +381,7 @@ class _BellButton extends ConsumerWidget {
         backgroundColor: AppColors.danger,
         label: Text('$unread'),
         child: const Icon(Icons.notifications_outlined,
-            color: AppColors.white, size: 26),
+            color: AppColors.primaryDark, size: 26),
       ),
     );
   }
@@ -582,8 +508,7 @@ class _TierStep extends StatelessWidget {
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Padding(
-              padding:
-                  EdgeInsets.only(bottom: railFill == null ? 0 : AppSpacing.xl),
+              padding: EdgeInsets.only(bottom: railFill == null ? 0 : 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -596,7 +521,7 @@ class _TierStep extends StatelessWidget {
                               color: reached
                                   ? AppColors.text
                                   : AppColors.textSecondary,
-                              fontSize: isCurrent ? 22 : 19,
+                              fontSize: isCurrent ? 18 : 16,
                               height: 1.3,
                               fontWeight: isCurrent
                                   ? FontWeight.w800
@@ -619,9 +544,12 @@ class _TierStep extends StatelessWidget {
                       style: isCurrent
                           ? const TextStyle(
                               color: AppColors.primary,
-                              fontSize: 13,
+                              fontSize: 12.5,
                               fontWeight: FontWeight.w600)
-                          : AppText.caption),
+                          : const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12.5,
+                              height: 1.35)),
                 ],
               ),
             ),

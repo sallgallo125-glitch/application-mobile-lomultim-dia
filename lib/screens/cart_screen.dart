@@ -23,7 +23,7 @@ import '../widgets/commerce/product_rail.dart';
 import '../features/home/home_providers.dart';
 
 /// Light grey page behind the white cards (Jumia / Samsung style).
-const _pageBg = Color(0xFFF5F6FA);
+const _pageBg = AppColors.white;
 
 class CartScreen extends ConsumerStatefulWidget {
   const CartScreen({super.key});
@@ -90,9 +90,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
           final totals = _CartTotals.of(
               value, isSignedIn && usePoints ? pointsBalance : 0, promoCode);
           return _CartCheckoutBar(
-            itemCount: totals.itemCount,
             totalXof: totals.totalXof,
-            savingsXof: totals.savingsXof,
             onContinue: () => context.push('/commande/paiement'),
           );
         },
@@ -598,7 +596,6 @@ class _CartTotals {
   final bool freeDelivery;
   final int deliveryFeeXof;
   final int totalXof;
-  int get savingsXof => promoDiscountXof + pointsDiscountXof;
 }
 
 /// White rounded card on the grey page, no border.
@@ -614,6 +611,8 @@ class _Card extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: AppColors.white,
+          // White page: the outline keeps the blocks apart.
+          border: Border.all(color: AppColors.border),
           borderRadius: BorderRadius.circular(14),
         ),
         child: child,
@@ -655,8 +654,8 @@ class _SelectAllRow extends StatelessWidget {
           child: Row(children: [
             _BrandCheckbox(value: value, onChanged: onChanged),
             Text('Tout sélectionner ($count)',
-                style: const TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w700)),
+                style:
+                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
           ]),
         ),
       );
@@ -680,7 +679,8 @@ class _EditBar extends StatelessWidget {
         child: Row(children: [
           _BrandCheckbox(value: allSelected, onChanged: onSelectAll),
           const Expanded(
-              child: Text('Tout', style: TextStyle(fontWeight: FontWeight.w700))),
+              child:
+                  Text('Tout', style: TextStyle(fontWeight: FontWeight.w700))),
           SizedBox(
             height: 48,
             child: ElevatedButton(
@@ -688,8 +688,7 @@ class _EditBar extends StatelessWidget {
                 backgroundColor: AppColors.danger,
                 foregroundColor: AppColors.white,
                 shape: const StadiumBorder(),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
               ),
               onPressed: selectedCount == 0 ? null : onRemove,
               child: Text('Supprimer ($selectedCount)'),
@@ -724,16 +723,14 @@ class _BarShell extends StatelessWidget {
 
 /// One-line bar: total (and savings) on the left, "Commander (n)" right.
 class _CartCheckoutBar extends StatelessWidget {
+  // Item count is in the page title and savings in the summary: the bar
+  // only carries the total and the button.
   const _CartCheckoutBar({
-    required this.itemCount,
     required this.totalXof,
-    required this.savingsXof,
     required this.onContinue,
   });
 
-  final int itemCount;
   final int totalXof;
-  final int savingsXof;
   final VoidCallback onContinue;
 
   @override
@@ -765,12 +762,6 @@ class _CartCheckoutBar extends StatelessWidget {
                     ),
                   ])),
                 ),
-                if (savingsXof > 0)
-                  Text('−${formatXof(savingsXof)} économisés',
-                      style: const TextStyle(
-                          color: AppColors.success,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700)),
               ],
             ),
           ),
@@ -782,13 +773,12 @@ class _CartCheckoutBar extends StatelessWidget {
                 backgroundColor: AppColors.primaryDark,
                 foregroundColor: AppColors.white,
                 shape: const StadiumBorder(),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
                 textStyle:
                     const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
               ),
               onPressed: onContinue,
-              child: Text('Commander ($itemCount)'),
+              child: const Text('Commander'),
             ),
           ),
         ]),
@@ -902,9 +892,7 @@ class _Summary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(children: [
-        _row(
-            'Sous-total (${totals.itemCount} article${totals.itemCount > 1 ? 's' : ''})',
-            formatXof(totals.subtotalXof)),
+        _row('Sous-total', formatXof(totals.subtotalXof)),
         if (totals.promoDiscountXof > 0)
           _row('Code promo', '−${formatXof(totals.promoDiscountXof)}',
               color: AppColors.success),
@@ -989,19 +977,18 @@ class _UsePoints extends ConsumerWidget {
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Row(children: [
           Expanded(
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: const TextStyle(
-                          color: AppColors.text,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700)),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(subtitle, style: AppText.caption),
-                  ],
-                ]),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title,
+                  style: const TextStyle(
+                      color: AppColors.text,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700)),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(subtitle, style: AppText.caption),
+              ],
+            ]),
           ),
           if (trailing != null) ...[
             const SizedBox(width: AppSpacing.sm),
@@ -1052,8 +1039,11 @@ class _UsePoints extends ConsumerWidget {
             final on = ref.watch(usePointsFromCartProvider);
             return _line(
                 'Utiliser mes $usable pts '
-                    '(−${formatXof(usable * loyaltyPointValueXof)})',
-                on ? 'Réduction appliquée au total' : '$balance pts disponibles',
+                '(−${formatXof(usable * loyaltyPointValueXof)})',
+                // The discount itself is in the summary: show what is left.
+                on
+                    ? 'Il vous restera ${balance - usable} pts'
+                    : '$balance pts disponibles',
                 Switch(
                   value: on,
                   activeThumbColor: AppColors.white,

@@ -22,7 +22,7 @@ void main() {
     // HP ProBook: 795 000 instead of 1 060 000 → −25 %.
     await open(tester, '/produit/p-001');
     expect(find.text('−25 %'), findsOneWidget);
-    expect(find.text('HP · INFORMATIQUE'), findsOneWidget);
+    expect(find.text('HP · Informatique'), findsOneWidget);
     expect(find.bySemanticsLabel('Partager'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Vous aimerez aussi'), 300,
         scrollable: find.byType(Scrollable).first);

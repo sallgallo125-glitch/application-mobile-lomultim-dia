@@ -10,6 +10,8 @@ final accountSummaryProvider = FutureProvider<AccountSummary>(
     (ref) => ref.watch(accountRepositoryProvider).getSummary());
 final ordersProvider = FutureProvider<List<OrderSummary>>(
     (ref) => ref.watch(accountRepositoryProvider).listOrders());
+final orderDetailProvider = FutureProvider.family<OrderDetail, String>(
+    (ref, number) => ref.watch(accountRepositoryProvider).getOrder(number));
 
 class SessionUser {
   const SessionUser({required this.name, required this.phone});
@@ -18,14 +20,18 @@ class SessionUser {
 }
 
 /// Signed-in customer, kept on the device between launches.
-final sessionUserProvider = StateProvider<SessionUser?>((ref) {
+final sessionUserProvider =
+    StateNotifierProvider<StateController<SessionUser?>, SessionUser?>((ref) {
   const key = 'session_user';
-  ref.listenSelf((_, next) => writeStored(ref, key,
-      next == null ? null : {'name': next.name, 'phone': next.phone}));
-  return readStored(ref, key, (json) {
+  final controller = StateController<SessionUser?>(readStored(ref, key, (json) {
     final m = json as Map<String, dynamic>;
     return SessionUser(name: m['name'] as String, phone: m['phone'] as String);
-  });
+  }));
+  controller.addListener(
+      (next) => writeStored(ref, key,
+          next == null ? null : {'name': next.name, 'phone': next.phone}),
+      fireImmediately: false);
+  return controller;
 });
 
 /// Customer account created in the app (mock until the real auth API).
@@ -76,19 +82,21 @@ const demoAccount = RegisteredAccount(
     password: 'lo123456');
 
 /// Accounts created on this device (mock auth), kept between launches.
-final registeredAccountsProvider =
-    StateProvider<List<RegisteredAccount>>((ref) {
+final registeredAccountsProvider = StateNotifierProvider<
+    StateController<List<RegisteredAccount>>, List<RegisteredAccount>>((ref) {
   const key = 'registered_accounts';
-  ref.listenSelf(
-      (_, next) => writeStored(ref, key, [for (final a in next) a.toJson()]));
-  return readStored(
+  final controller = StateController<List<RegisteredAccount>>(readStored(
           ref,
           key,
           (json) => [
                 for (final a in json as List<dynamic>)
                   RegisteredAccount.fromJson(a as Map<String, dynamic>)
               ]) ??
-      const <RegisteredAccount>[];
+      const <RegisteredAccount>[]);
+  controller.addListener(
+      (next) => writeStored(ref, key, [for (final a in next) a.toJson()]),
+      fireImmediately: false);
+  return controller;
 });
 
 /// Account matching [identifier] (e-mail or phone) and [password], or null.
@@ -114,21 +122,30 @@ class GuestContact {
   final String? address;
 }
 
-final guestContactProvider = StateProvider<GuestContact?>((ref) {
+final guestContactProvider =
+    StateNotifierProvider<StateController<GuestContact?>, GuestContact?>((ref) {
   const key = 'guest_contact';
-  ref.listenSelf((_, next) => writeStored(
-      ref,
-      key,
-      next == null
-          ? null
-          : {'name': next.name, 'phone': next.phone, 'address': next.address}));
-  return readStored(ref, key, (json) {
+  final controller =
+      StateController<GuestContact?>(readStored(ref, key, (json) {
     final m = json as Map<String, dynamic>;
     return GuestContact(
         name: m['name'] as String,
         phone: m['phone'] as String,
         address: m['address'] as String?);
-  });
+  }));
+  controller.addListener(
+      (next) => writeStored(
+          ref,
+          key,
+          next == null
+              ? null
+              : {
+                  'name': next.name,
+                  'phone': next.phone,
+                  'address': next.address
+                }),
+      fireImmediately: false);
+  return controller;
 });
 
 /// An order placed without an account, kept on this device so the guest
@@ -162,18 +179,22 @@ class GuestOrder {
 }
 
 /// Guest orders placed on this device, most recent first (max 30).
-final guestOrdersProvider = StateProvider<List<GuestOrder>>((ref) {
+final guestOrdersProvider =
+    StateNotifierProvider<StateController<List<GuestOrder>>, List<GuestOrder>>(
+        (ref) {
   const key = 'guest_orders';
-  ref.listenSelf(
-      (_, next) => writeStored(ref, key, [for (final o in next) o.toJson()]));
-  return readStored(
+  final controller = StateController<List<GuestOrder>>(readStored(
           ref,
           key,
           (json) => [
                 for (final o in json as List<dynamic>)
                   GuestOrder.fromJson(o as Map<String, dynamic>)
               ]) ??
-      const <GuestOrder>[];
+      const <GuestOrder>[]);
+  controller.addListener(
+      (next) => writeStored(ref, key, [for (final o in next) o.toJson()]),
+      fireImmediately: false);
+  return controller;
 });
 
 final signedInProvider =
@@ -181,14 +202,23 @@ final signedInProvider =
 
 /// Delivery address and zone of the customer's last order, per account
 /// (keyed by phone), kept on the device to pre-fill the next checkout.
-final lastDeliveryProvider =
-    StateProvider.family<({String address, String zoneId})?, String>(
-        (ref, account) {
+final lastDeliveryProvider = StateNotifierProvider.family<
+    StateController<({String address, String zoneId})?>,
+    ({String address, String zoneId})?,
+    String>((ref, account) {
   final key = 'last_delivery_$account';
-  ref.listenSelf((_, next) => writeStored(ref, key,
-      next == null ? null : {'address': next.address, 'zoneId': next.zoneId}));
-  return readStored(ref, key, (json) {
+  final controller = StateController<({String address, String zoneId})?>(
+      readStored(ref, key, (json) {
     final m = json as Map<String, dynamic>;
     return (address: m['address'] as String, zoneId: m['zoneId'] as String);
-  });
+  }));
+  controller.addListener(
+      (next) => writeStored(
+          ref,
+          key,
+          next == null
+              ? null
+              : {'address': next.address, 'zoneId': next.zoneId}),
+      fireImmediately: false);
+  return controller;
 });

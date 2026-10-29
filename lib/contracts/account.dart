@@ -35,19 +35,32 @@ class AccountSummary {
 class OrderLineSummary {
   const OrderLineSummary({
     required this.name,
+    this.productId,
     this.imageUrl,
     this.categoryId,
+    this.quantity = 1,
+    this.unitPriceXof,
   });
 
   final String name;
+
+  /// Catalogue product, to buy it again (null when unknown).
+  final String? productId;
   final String? imageUrl;
   final String? categoryId;
+  final int quantity;
+
+  /// Price frozen at order time; null when the server does not send it.
+  final int? unitPriceXof;
 
   factory OrderLineSummary.fromJson(Map<String, dynamic> json) =>
       OrderLineSummary(
         name: json['name'] as String,
+        productId: json['productId'] as String?,
         imageUrl: json['imageUrl'] as String?,
         categoryId: json['categoryId'] as String?,
+        quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+        unitPriceXof: (json['unitPriceXof'] as num?)?.toInt(),
       );
 }
 
@@ -103,8 +116,8 @@ class OrderSummary {
       status: json['status'] as String,
       totalXof: (json['totalXof'] as num).toInt(),
       items: (json['items'] as List<dynamic>? ?? const [])
-          .map((item) =>
-              OrderLineSummary.fromJson(item as Map<String, dynamic>))
+          .map(
+              (item) => OrderLineSummary.fromJson(item as Map<String, dynamic>))
           .toList(),
       deliveryInfo: json['deliveryInfo'] as String?,
       pointsToEarn: (json['pointsToEarn'] as num?)?.toInt() ?? 0,
@@ -116,4 +129,69 @@ class OrderSummary {
       guest: json['customerType'] == 'GUEST',
       pointsIfMemberXof: (json['pointsIfMember'] as num?)?.toInt() ?? 0,
       phone: json['phone'] as String?);
+}
+
+/// One status change of an order (ERP: historique des statuts).
+class OrderEvent {
+  const OrderEvent({required this.status, required this.at, this.comment});
+  final String status;
+
+  /// Display date, e.g. « 24 sept., 10:42 ».
+  final String at;
+  final String? comment;
+
+  factory OrderEvent.fromJson(Map<String, dynamic> json) => OrderEvent(
+      status: json['status'] as String,
+      at: json['at'] as String,
+      comment: json['comment'] as String?);
+}
+
+/// GET /api/v1/orders/:number — the order with its lines, status history,
+/// delivery, payment and price breakdown.
+class OrderDetail {
+  const OrderDetail({
+    required this.summary,
+    this.events = const [],
+    required this.subtotalXof,
+    this.deliveryFeeXof = 0,
+    this.promoDiscountXof = 0,
+    required this.deliveryLabel,
+    this.address,
+    this.recipient,
+    required this.paymentLabel,
+    required this.paid,
+    this.cancellable = false,
+  });
+
+  final OrderSummary summary;
+  final List<OrderEvent> events;
+  final int subtotalXof;
+  final int deliveryFeeXof;
+  final int promoDiscountXof;
+  final String deliveryLabel;
+
+  /// Delivery address, or the pickup showroom.
+  final String? address;
+  final String? recipient;
+  final String paymentLabel;
+  final bool paid;
+
+  /// The customer can still cancel it (ERP: annulable).
+  final bool cancellable;
+
+  factory OrderDetail.fromJson(Map<String, dynamic> json) => OrderDetail(
+        summary: OrderSummary.fromJson(json),
+        events: (json['events'] as List<dynamic>? ?? const [])
+            .map((e) => OrderEvent.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        subtotalXof: (json['subtotalXof'] as num).toInt(),
+        deliveryFeeXof: (json['deliveryFeeXof'] as num?)?.toInt() ?? 0,
+        promoDiscountXof: (json['promoDiscountXof'] as num?)?.toInt() ?? 0,
+        deliveryLabel: json['deliveryLabel'] as String,
+        address: json['address'] as String?,
+        recipient: json['name'] as String?,
+        paymentLabel: json['paymentLabel'] as String,
+        paid: json['paid'] as bool? ?? false,
+        cancellable: json['cancellable'] as bool? ?? false,
+      );
 }

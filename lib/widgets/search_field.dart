@@ -99,7 +99,7 @@ class SearchField extends StatelessWidget {
             _IconAction(
               icon: Icons.photo_camera,
               tooltip: 'Rechercher par photo',
-              color: Color(0xFF8A8FA6),
+              color: const Color(0xFF8A8FA6),
               onPressed: onCamera!,
             ),
           const SizedBox(width: 2),

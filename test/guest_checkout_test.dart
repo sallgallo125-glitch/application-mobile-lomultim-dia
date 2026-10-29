@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile_app/screens/product_screen.dart' show buyBarAddKey;
 import 'package:mobile_app/api/api_client.dart';
 import 'package:mobile_app/api/errors.dart';
 import 'package:mobile_app/api/repositories/cart_repository.dart';
@@ -70,13 +71,13 @@ void main() {
     // Add from the product page, then the cart.
     appRouter.go('/produit/p-005');
     await settle();
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Ajouter au panier'));
+    await tester.tap(find.byKey(buyBarAddKey));
     await settle();
-    await tester.tap(find.descendant(
-        of: find.byType(SnackBar), matching: find.text('Voir le panier')));
+    await tester.tap(find.text('ajouté au panier'));
     await settle();
-    expect(find.text('Utiliser mes points LO+'), findsNothing);
-    await tester.tap(find.text('Continuer la commande'));
+    // Guests are invited to sign in to use their LO+ points.
+    expect(find.text('Se connecter'), findsOneWidget);
+    await tester.tap(find.text('Commander'));
     await settle();
 
     // Step 1: contact details typed by the guest, pick-up in showroom.
@@ -130,7 +131,7 @@ void main() {
     appRouter.go('/commandes');
     await settle();
     expect(find.text(guestOrders.first.number), findsOneWidget);
-    expect(find.text('Suivre'), findsOneWidget);
+    expect(find.text('Suivre la commande'), findsOneWidget);
 
     appRouter.go('/');
     await settle();

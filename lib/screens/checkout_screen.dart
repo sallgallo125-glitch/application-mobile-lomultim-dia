@@ -31,7 +31,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final name = TextEditingController();
   final phone = TextEditingController();
   // Pre-filled with the code entered in the cart.
-  late final promo =
+  // Touched in initState: otherwise this lazy field is first built in
+  // dispose() when the promo section was never opened, reading `ref` too late.
+  late final TextEditingController promo =
       TextEditingController(text: ref.read(cartPromoCodeProvider));
 
   /// Promo code the customer applied (checked by [calculateCheckoutTotals]).
@@ -106,6 +108,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   @override
   void initState() {
     super.initState();
+    promo; // Builds the controller while `ref` is still usable.
     final user = ref.read(sessionUserProvider);
     if (user != null) {
       name.text = user.name;
@@ -148,65 +151,61 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   Future<bool> _confirmOnlinePayment() async {
     final number = phone.text.trim();
-    final (title, body, asset, icon) = switch (payment) {
+    final (title, body, asset) = switch (payment) {
       PaymentMethod.wave => (
           'Paiement Wave',
           'Une demande de paiement va être envoyée au $number. Ouvrez Wave '
               'et validez-la pour confirmer votre commande.',
-          'assets/paiement/wave.png',
-          Icons.waves,
+          'assets/paiement/wave.png'
         ),
       PaymentMethod.orangeMoney => (
           'Paiement Orange Money',
           'Vous allez recevoir une demande sur le $number. Validez-la avec '
               'votre code secret Orange Money (ou composez #144#).',
-          'assets/paiement/orange-money.png',
-          Icons.phone_android,
+          'assets/paiement/orange-money.png'
         ),
       PaymentMethod.freeMoney => (
           'Paiement Free Money',
           'Vous allez recevoir une demande sur le $number. Validez-la avec '
               'votre code secret Free Money (ou composez #150#).',
-          'assets/paiement/free-money.png',
-          Icons.phone_android,
+          'assets/paiement/free-money.png'
         ),
       _ => (
           'Paiement par carte',
           'Vous allez être redirigé vers la page de paiement sécurisée de la '
               'banque (Visa, Mastercard).',
-          'assets/paiement/Icône_de_carte_bancaire_moderne-removebg-preview.png',
-          Icons.credit_card,
+          'assets/paiement/Icône_de_carte_bancaire_moderne-removebg-preview.png'
         ),
     };
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        icon: asset != null
-            ? Center(
-                child: Container(
-                  width: 54,
-                  height: 54,
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    borderRadius: BorderRadius.circular(AppRadii.md),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(AppRadii.sm),
-                    child: Image.asset(asset,
-                        width: double.infinity,
-                        height: double.infinity,
-                        fit: BoxFit.cover),
-                  ),
-                ),
-              )
-            : Icon(icon, color: AppColors.primary, size: 36),
+        // Every method has its logo.
+        icon: Center(
+          child: Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(AppRadii.md),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+              child: Image.asset(asset,
+                  width: double.infinity,
+                  height: double.infinity,
+                  fit: BoxFit.cover),
+            ),
+          ),
+        ),
         title: Text(title),
         content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Montant à payer avec ${payment.label} : '
+              Text(
+                  'Montant à payer avec ${payment.label} : '
                   '${formatXof(_amountDueXof)}',
                   style: const TextStyle(
                       fontSize: 16, fontWeight: FontWeight.w800)),
@@ -275,9 +274,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           address: _needsAddress ? address.text.trim() : null);
       if (mounted) context.go('/commande/confirmation', extra: order);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() => error =
             errorMessage(e, 'Impossible de confirmer la commande. Réessayez.'));
+      }
     } finally {
       if (mounted) setState(() => sending = false);
     }
@@ -848,16 +848,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         ])),
               ),
               const SizedBox(height: AppSpacing.xs),
-              const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.verified_user_outlined,
-                        size: 13, color: AppColors.textSecondary),
-                    SizedBox(width: 4),
-                    Text('Paiement sécurisé · Garantie constructeur',
-                        style: TextStyle(
-                            fontSize: 11, color: AppColors.textSecondary)),
-                  ]),
+              const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(Icons.verified_user_outlined,
+                    size: 13, color: AppColors.textSecondary),
+                SizedBox(width: 4),
+                Flexible(
+                  child: Text('Paiement sécurisé · Garantie constructeur',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 11, color: AppColors.textSecondary)),
+                ),
+              ]),
             ]),
           ),
         ),
@@ -901,7 +902,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           Flexible(
               child: Text(label,
                   style:
-                      TextStyle(color: AppColors.textSecondary, fontSize: 13))),
+                      const TextStyle(color: AppColors.textSecondary, fontSize: 13))),
           const SizedBox(width: AppSpacing.sm),
           Text(value,
               style: TextStyle(
@@ -913,14 +914,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 
   String? _paymentAsset(PaymentMethod method) => switch (method) {
-      PaymentMethod.cashOnDelivery =>
-        'assets/paiement/Icône de paiement en espèces.png',
-      PaymentMethod.wave => 'assets/paiement/wave.png',
-      PaymentMethod.orangeMoney => 'assets/paiement/orange-money.png',
-      PaymentMethod.freeMoney => 'assets/paiement/free-money.png',
-      PaymentMethod.card =>
-        'assets/paiement/Icône_de_carte_bancaire_moderne-removebg-preview.png',
-    };
+        PaymentMethod.cashOnDelivery =>
+          'assets/paiement/Icône de paiement en espèces.png',
+        PaymentMethod.wave => 'assets/paiement/wave.png',
+        PaymentMethod.orangeMoney => 'assets/paiement/orange-money.png',
+        PaymentMethod.freeMoney => 'assets/paiement/free-money.png',
+        PaymentMethod.card =>
+          'assets/paiement/Icône_de_carte_bancaire_moderne-removebg-preview.png',
+      };
 }
 
 class _RadioOption<T> extends StatelessWidget {
@@ -1083,8 +1084,8 @@ class _PayTile extends StatelessWidget {
                   child: Image.asset(asset, fit: BoxFit.cover),
                 ),
                 Container(
-                  padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.sm, AppSpacing.sm, AppSpacing.xs, AppSpacing.sm),
+                  padding: const EdgeInsets.fromLTRB(AppSpacing.sm,
+                      AppSpacing.sm, AppSpacing.xs, AppSpacing.sm),
                   decoration: const BoxDecoration(
                       border: Border(top: BorderSide(color: AppColors.border))),
                   child: Row(children: [

@@ -8,10 +8,20 @@ class CatalogRepository {
 
   final ApiClient _apiClient;
 
-  Future<List<ProductSummary>> listProducts() =>
-      _getList('/api/v1/products', ProductSummary.fromJson);
-  Future<List<Category>> listCategories() =>
-      _getList('/api/v1/categories', Category.fromJson);
+  /// How long each kind of catalogue data is served from the device before
+  /// being refreshed. Price and stock live on the product detail, kept the
+  /// shortest; the cart and checkout are never cached (the server prices
+  /// them).
+  static const categoriesMaxAge = Duration(hours: 6);
+  static const productsMaxAge = Duration(minutes: 10);
+  static const productMaxAge = Duration(minutes: 1);
+
+  Future<List<ProductSummary>> listProducts({void Function()? onRefreshed}) =>
+      _getList('/api/v1/products', ProductSummary.fromJson,
+          maxAge: productsMaxAge, onRefreshed: onRefreshed);
+  Future<List<Category>> listCategories({void Function()? onRefreshed}) =>
+      _getList('/api/v1/categories', Category.fromJson,
+          maxAge: categoriesMaxAge, onRefreshed: onRefreshed);
 
   /// Products resembling a photo (JPEG bytes, base64). Returns the detected
   /// department name and the matching products.
@@ -35,11 +45,14 @@ class CatalogRepository {
     }
   }
 
-  Future<ProductDetail> getProduct(String id) async {
+  Future<ProductDetail> getProduct(String id,
+      {void Function()? onRefreshed}) async {
     final path = '/api/v1/products/$id';
-    final raw = await _apiClient.get(path);
-    if (raw is! Map<String, dynamic> || raw['data'] is! Map<String, dynamic>)
+    final raw = await _apiClient.getCached(path,
+        maxAge: productMaxAge, onRefreshed: onRefreshed);
+    if (raw is! Map<String, dynamic> || raw['data'] is! Map<String, dynamic>) {
       throw ApiParseError(path, 'expected product envelope, got $raw');
+    }
     try {
       return ProductDetail.fromJson(raw['data'] as Map<String, dynamic>);
     } catch (error) {
@@ -47,9 +60,30 @@ class CatalogRepository {
     }
   }
 
+  /// Publishes the signed-in customer's review of a product.
+  Future<ProductReview> submitReview(String productId,
+      {required String author,
+      required int rating,
+      required String comment}) async {
+    final path = '/api/v1/products/$productId/reviews';
+    final raw = await _apiClient.post(
+        path, {'author': author, 'rating': rating, 'comment': comment});
+    _apiClient.forget('/api/v1/products/$productId');
+    if (raw is! Map<String, dynamic> || raw['data'] is! Map<String, dynamic>) {
+      throw ApiParseError(path, 'expected review envelope, got $raw');
+    }
+    try {
+      return ProductReview.fromJson(raw['data'] as Map<String, dynamic>);
+    } catch (error) {
+      throw ApiParseError(path, error);
+    }
+  }
+
   Future<List<T>> _getList<T>(
-      String path, T Function(Map<String, dynamic>) fromJson) async {
-    final raw = await _apiClient.get(path);
+      String path, T Function(Map<String, dynamic>) fromJson,
+      {required Duration maxAge, void Function()? onRefreshed}) async {
+    final raw = await _apiClient.getCached(path,
+        maxAge: maxAge, onRefreshed: onRefreshed);
     if (raw is! Map<String, dynamic> || raw['data'] is! List<dynamic>) {
       throw ApiParseError(path, 'expected {"data": [...]}, got $raw');
     }

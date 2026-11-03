@@ -258,6 +258,8 @@ class HomeWhyUs extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+
+    
         const SectionHeader(title: 'Pourquoi LO Multimédia'),
         const SizedBox(height: AppSpacing.sm),
         Padding(

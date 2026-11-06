@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/repositories/account_repository.dart';
 import '../../contracts/account.dart';
@@ -48,6 +52,10 @@ class RegisteredAccount {
   final String email;
   final String phone;
   final String address;
+
+  /// Salted hash from [hashPassword] (`sha256$salt$hex`). Accounts saved by
+  /// older builds may still hold the plain password; [verifyPassword]
+  /// accepts both.
   final String password;
 
   String get fullName => '$firstName $lastName';
@@ -99,6 +107,30 @@ final registeredAccountsProvider = StateNotifierProvider<
   return controller;
 });
 
+const _hashPrefix = 'sha256';
+
+String _digest(String salt, String password) =>
+    sha256.convert(utf8.encode('$salt:$password')).toString();
+
+/// Salted SHA-256 so the local database never holds a readable password.
+String hashPassword(String password) {
+  final random = Random.secure();
+  final salt = base64Url
+      .encode(List<int>.generate(16, (_) => random.nextInt(256)))
+      .replaceAll('=', '');
+  return '$_hashPrefix\$$salt\$${_digest(salt, password)}';
+}
+
+/// Checks [password] against a value stored by [hashPassword] (or a legacy
+/// plain-text value saved by older builds).
+bool verifyPassword(String stored, String password) {
+  final parts = stored.split(r'$');
+  if (parts.length == 3 && parts[0] == _hashPrefix) {
+    return parts[2] == _digest(parts[1], password);
+  }
+  return stored == password;
+}
+
 /// Account matching [identifier] (e-mail or phone) and [password], or null.
 RegisteredAccount? findAccount(
     List<RegisteredAccount> accounts, String identifier, String password) {
@@ -108,7 +140,7 @@ RegisteredAccount? findAccount(
     final matches = a.email.toLowerCase() == id ||
         (digits.length >= 9 &&
             a.phoneDigits.endsWith(digits.substring(digits.length - 9)));
-    if (matches && a.password == password) return a;
+    if (matches && verifyPassword(a.password, password)) return a;
   }
   return null;
 }

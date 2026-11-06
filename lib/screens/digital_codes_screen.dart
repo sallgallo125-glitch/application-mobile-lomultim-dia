@@ -31,8 +31,8 @@ class DigitalCodesScreen extends ConsumerWidget {
               ErrorState(onRetry: () => ref.invalidate(digitalCodesProvider)),
           data: (list) => list.isEmpty
               ? const _Empty()
-              : BiometricGate(
-                  child: RefreshIndicator(
+              // The tiles never show a code: only the detail is gated.
+              : RefreshIndicator(
                   onRefresh: () => ref.refresh(digitalCodesProvider.future),
                   child: ListView.separated(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -43,7 +43,7 @@ class DigitalCodesScreen extends ConsumerWidget {
                         const SizedBox(height: AppSpacing.lg),
                     itemBuilder: (context, i) => DigitalCodeTile(code: list[i]),
                   ),
-                )),
+                ),
         ),
       ),
     );

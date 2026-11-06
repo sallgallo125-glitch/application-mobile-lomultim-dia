@@ -53,9 +53,9 @@ class RegisteredAccount {
   final String phone;
   final String address;
 
-  /// Salted hash from [hashPassword] (`sha256$salt$hex`). Accounts saved by
-  /// older builds may still hold the plain password; [verifyPassword]
-  /// accepts both.
+  /// Salted hash from [hashPassword] (`pbkdf2$...`). Older builds stored a
+  /// salted SHA-256 or the plain password; [verifyPassword] accepts them
+  /// and [upgradeStoredPassword] replaces them at the next sign-in.
   final String password;
 
   String get fullName => '$firstName $lastName';
@@ -107,28 +107,99 @@ final registeredAccountsProvider = StateNotifierProvider<
   return controller;
 });
 
-const _hashPrefix = 'sha256';
+const _legacyPrefix = 'sha256';
+const _pbkdf2Prefix = 'pbkdf2';
 
-String _digest(String salt, String password) =>
+/// PBKDF2-HMAC-SHA256 rounds. Pure Dart, so kept to a value that stays
+/// well under a second on entry-level phones while making each guess
+/// tens of thousands of times costlier than a single SHA-256.
+const pbkdf2Iterations = 60000;
+
+String _legacyDigest(String salt, String password) =>
     sha256.convert(utf8.encode('$salt:$password')).toString();
 
-/// Salted SHA-256 so the local database never holds a readable password.
-String hashPassword(String password) {
-  final random = Random.secure();
-  final salt = base64Url
-      .encode(List<int>.generate(16, (_) => random.nextInt(256)))
-      .replaceAll('=', '');
-  return '$_hashPrefix\$$salt\$${_digest(salt, password)}';
+/// PBKDF2-HMAC-SHA256, one 32-byte block (RFC 8018).
+List<int> _pbkdf2(String password, List<int> salt, int iterations) {
+  final hmac = Hmac(sha256, utf8.encode(password));
+  var u = hmac.convert([...salt, 0, 0, 0, 1]).bytes;
+  final out = List<int>.of(u);
+  for (var i = 1; i < iterations; i++) {
+    u = hmac.convert(u).bytes;
+    for (var j = 0; j < out.length; j++) {
+      out[j] ^= u[j];
+    }
+  }
+  return out;
 }
 
-/// Checks [password] against a value stored by [hashPassword] (or a legacy
-/// plain-text value saved by older builds).
+/// Compares without stopping at the first difference (no timing leak).
+bool _constantTimeEquals(List<int> a, List<int> b) {
+  if (a.length != b.length) return false;
+  var diff = 0;
+  for (var i = 0; i < a.length; i++) {
+    diff |= a[i] ^ b[i];
+  }
+  return diff == 0;
+}
+
+/// Salted PBKDF2 so the local database never holds a readable password:
+/// `pbkdf2$iterations$salt$hash` (base64url).
+String hashPassword(String password) {
+  final random = Random.secure();
+  final salt = List<int>.generate(16, (_) => random.nextInt(256));
+  final hash = _pbkdf2(password, salt, pbkdf2Iterations);
+  return '$_pbkdf2Prefix\$$pbkdf2Iterations\$${base64Url.encode(salt)}'
+      '\$${base64Url.encode(hash)}';
+}
+
+/// True when [stored] is not in the current format and should be replaced
+/// by [hashPassword] at the next successful sign-in.
+bool needsRehash(String stored) {
+  final parts = stored.split(r'$');
+  return !(parts.length == 4 &&
+      parts[0] == _pbkdf2Prefix &&
+      int.tryParse(parts[1]) == pbkdf2Iterations);
+}
+
+/// Checks [password] against a value stored by [hashPassword], by older
+/// builds (salted SHA-256) or as legacy plain text.
 bool verifyPassword(String stored, String password) {
   final parts = stored.split(r'$');
-  if (parts.length == 3 && parts[0] == _hashPrefix) {
-    return parts[2] == _digest(parts[1], password);
+  try {
+    if (parts.length == 4 && parts[0] == _pbkdf2Prefix) {
+      final iterations = int.parse(parts[1]);
+      final salt = base64Url.decode(parts[2]);
+      final expected = base64Url.decode(parts[3]);
+      return _constantTimeEquals(
+          _pbkdf2(password, salt, iterations), expected);
+    }
+    if (parts.length == 3 && parts[0] == _legacyPrefix) {
+      return _constantTimeEquals(utf8.encode(parts[2]),
+          utf8.encode(_legacyDigest(parts[1], password)));
+    }
+  } on FormatException {
+    return false;
   }
-  return stored == password;
+  return _constantTimeEquals(utf8.encode(stored), utf8.encode(password));
+}
+
+/// Replaces an outdated stored password of [account] by a fresh hash, once
+/// [password] has just been verified. The demo account is left as is.
+void upgradeStoredPassword(
+    WidgetRef ref, RegisteredAccount account, String password) {
+  if (!needsRehash(account.password)) return;
+  final controller = ref.read(registeredAccountsProvider.notifier);
+  if (!controller.state.any((a) => identical(a, account))) return;
+  final upgraded = RegisteredAccount(
+      firstName: account.firstName,
+      lastName: account.lastName,
+      email: account.email,
+      phone: account.phone,
+      address: account.address,
+      password: hashPassword(password));
+  controller.state = [
+    for (final a in controller.state) identical(a, account) ? upgraded : a
+  ];
 }
 
 /// Account matching [identifier] (e-mail or phone) and [password], or null.

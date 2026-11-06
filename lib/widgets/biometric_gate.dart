@@ -10,7 +10,8 @@ import '../theme/tokens.dart';
 /// has usable biometrics, so the user can never be locked out for good.
 final biometricLockProvider = FutureProvider<bool>((ref) async {
   if (!ref.watch(signedInProvider)) return false;
-  final enabled = await ref.watch(biometricLoginProvider.future) != null;
+  // Only the account that turned the quick sign-in on is locked by it.
+  final enabled = await ref.watch(biometricEnabledForSessionProvider.future);
   if (!enabled) return false;
   return ref.watch(biometricAvailableProvider.future);
 });

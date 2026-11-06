@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../contracts/product.dart';
+import '../../features/cart/cart_providers.dart';
 import '../../features/catalog/catalog_providers.dart';
+import '../../features/customer/customer_providers.dart';
 import '../../theme/tokens.dart';
 import '../../utils/currency.dart';
 import 'product_image.dart';
@@ -12,10 +15,10 @@ import '../header_actions.dart';
 String cardProductName(String name) =>
     name.replaceAll(RegExp(r'\s*[—–]\s*'), ' ').trim();
 
-/// Product card of the home rails, same layout as the site's ProductCard
-/// (DevA -final/src/components/catalog/ProductCard.tsx): badge and heart on
-/// the image, brand, name, price, old price, rating and a full-width
-/// "+ Ajouter" button.
+/// Product card (home rails, shop, search, favourites): white card with a
+/// soft shadow, inset rounded photo with a red "-17%" tag and a large white
+/// heart disc on its top-right corner, 2-line name, bold price + struck old
+/// price, "★ 4.8 (320)" and a round cart button in the bottom-right corner.
 class ProductCardWidget extends StatefulWidget {
   const ProductCardWidget(
       {super.key, required this.product, this.onPressed, this.width = 162});
@@ -32,12 +35,26 @@ class _ProductCardWidgetState extends State<ProductCardWidget> {
   bool _isHovered = false;
   bool _isPressed = false;
 
-  static const _badgeLabels = {
-    ProductBadge.promo: 'PROMO',
-    ProductBadge.newItem: 'NOUVEAU',
-    ProductBadge.top: 'TOP VENTE',
-    ProductBadge.stock: 'STOCK LIMITÉ',
-  };
+  static const _radius = 22.0;
+  static const _inset = 12.0;
+  static const _ink = AppColors.text;
+  static const _muted = AppColors.textSecondary;
+
+  /// "-17%" when there is an old price, else the first badge.
+  String? get _tag {
+    final p = widget.product;
+    final old = p.compareAtPriceXof;
+    if (old != null && old > p.priceXof) {
+      return '-${((1 - p.priceXof / old) * 100).round()}%';
+    }
+    if (p.badges.isEmpty) return null;
+    return switch (p.badges.first) {
+      ProductBadge.promo => 'PROMO',
+      ProductBadge.newItem => 'NOUVEAU',
+      ProductBadge.top => 'TOP',
+      ProductBadge.stock => 'STOCK LIMITÉ',
+    };
+  }
 
   String? _getSecondaryImageUrl(ProductSummary product) {
     if (product.secondaryImageUrl != null &&
@@ -66,185 +83,285 @@ class _ProductCardWidgetState extends State<ProductCardWidget> {
   @override
   Widget build(BuildContext context) {
     final product = widget.product;
-    final badge = product.badges.isEmpty ? null : product.badges.first;
-    final hasDiscount = product.compareAtPriceXof != null &&
-        product.compareAtPriceXof! > product.priceXof;
+    final tag = _tag;
+    final old = product.compareAtPriceXof;
+    final hasDiscount = old != null && old > product.priceXof;
     final isZoomed = _isHovered || _isPressed;
     final secondaryImageUrl = _getSecondaryImageUrl(product);
 
     return SizedBox(
       width: widget.width,
-      child: Material(
-        color: AppColors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadii.lg),
-          side: const BorderSide(color: AppColors.border),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(_radius),
+          // Raised look: a wide soft grey halo plus a tighter darker
+          // shadow just under the card.
+          boxShadow: const [
+            BoxShadow(
+                color: Color(0x33000000),
+                blurRadius: 22,
+                spreadRadius: 1,
+                offset: Offset(0, 8)),
+            BoxShadow(
+                color: Color(0x1F000000), blurRadius: 6, offset: Offset(0, 2)),
+          ],
         ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: widget.onPressed == null ? null : () => widget.onPressed!(product),
-          onTapDown: widget.onPressed == null
-              ? null
-              : (_) => prefetchProduct(context, product.id),
-          onHover: (hovered) {
-            if (mounted && _isHovered != hovered) {
-              setState(() => _isHovered = hovered);
-            }
-          },
-          onHighlightChanged: (highlighted) {
-            if (mounted && _isPressed != highlighted) {
-              setState(() => _isPressed = highlighted);
-            }
-          },
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Flexible image: when larger text needs more room, the image
-              // shrinks instead of the card overflowing.
-              Expanded(
-                child: Stack(children: [
-                  Positioned.fill(
-                    child: ClipRect(
-                      child: AnimatedScale(
-                        scale: isZoomed ? 1.05 : 1.0,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOutCubic,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            ProductImage(
-                              url: product.imageUrl,
-                              categoryId: product.categoryId,
-                              iconSize: 44,
-                            ),
-                            if (secondaryImageUrl != null)
-                              AnimatedOpacity(
-                                opacity: isZoomed ? 1.0 : 0.0,
-                                duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeInOut,
-                                child: ProductImage(
-                                  url: secondaryImageUrl,
-                                  categoryId: product.categoryId,
-                                  iconSize: 44,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (badge != null)
-                    Positioned(
-                      top: AppSpacing.sm,
-                      left: AppSpacing.sm,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.sm, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: badge == ProductBadge.top
-                              ? AppColors.gold
-                              : badge == ProductBadge.newItem
-                                  ? AppColors.primarySoft
-                                  : AppColors.dangerSoft,
-                          borderRadius: BorderRadius.circular(AppRadii.pill),
-                        ),
-                        child: Text(_badgeLabels[badge]!,
-                            style: TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: .4,
-                                color: badge == ProductBadge.top
-                                    ? AppColors.text
-                                    : badge == ProductBadge.newItem
-                                        ? AppColors.primary
-                                        : AppColors.danger)),
-                      ),
-                    ),
-                  Positioned(
-                      top: AppSpacing.sm,
-                      right: AppSpacing.sm,
-                      child: FavoriteButton(productId: product.id)),
-                ]),
-              ),
+        child: Material(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(_radius),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: widget.onPressed == null
+                ? null
+                : () => widget.onPressed!(product),
+            onTapDown: widget.onPressed == null
+                ? null
+                : (_) => prefetchProduct(context, product.id),
+            onHover: (hovered) {
+              if (mounted && _isHovered != hovered) {
+                setState(() => _isHovered = hovered);
+              }
+            },
+            onHighlightChanged: (highlighted) {
+              if (mounted && _isPressed != highlighted) {
+                setState(() => _isPressed = highlighted);
+              }
+            },
+            child: Stack(children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.md),
+                // Bottom room keeps the price row above the round cart button.
+                padding: const EdgeInsets.fromLTRB(_inset, _inset, _inset, 34),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(product.brand.toUpperCase(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: .4)),
-                    const SizedBox(height: 2),
+                    // Flexible photo: larger text shrinks it instead of
+                    // overflowing the card.
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: Stack(fit: StackFit.expand, children: [
+                          AnimatedScale(
+                            scale: isZoomed ? 1.05 : 1.0,
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeOutCubic,
+                            child: Stack(fit: StackFit.expand, children: [
+                              ProductImage(
+                                  url: product.imageUrl,
+                                  categoryId: product.categoryId,
+                                  iconSize: 44),
+                              if (secondaryImageUrl != null)
+                                AnimatedOpacity(
+                                  opacity: isZoomed ? 1.0 : 0.0,
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeInOut,
+                                  child: ProductImage(
+                                      url: secondaryImageUrl,
+                                      categoryId: product.categoryId,
+                                      iconSize: 44),
+                                ),
+                            ]),
+                          ),
+                          if (tag != null)
+                            Positioned(
+                              top: 10,
+                              left: 10,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 6),
+                                decoration: BoxDecoration(
+                                    color: AppColors.danger,
+                                    borderRadius: BorderRadius.circular(8)),
+                                child: Text(tag,
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700)),
+                              ),
+                            ),
+                        ]),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     Text(cardProductName(product.name),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                            color: AppColors.text,
-                            fontSize: 12,
-                            height: 1.25,
-                            fontWeight: FontWeight.w800)),
-                    const SizedBox(height: AppSpacing.xs),
+                            color: _ink,
+                            fontSize: 14,
+                            height: 1.75,
+                            fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 4),
+                    // Price + struck old price; one line on every card.
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.centerLeft,
-                      child: Text(formatXof(product.priceXof),
-                          style: const TextStyle(
-                              color: AppColors.primary,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800)),
+                      child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(formatXof(product.priceXof),
+                                style: const TextStyle(
+                                    color: _ink,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800)),
+                            if (hasDiscount) ...[
+                              const SizedBox(width: 7),
+                              Text(formatXof(old),
+                                  style: const TextStyle(
+                                      color: _muted,
+                                      fontSize: 12,
+                                      decoration: TextDecoration.lineThrough,
+                                      decorationColor: _muted)),
+                            ],
+                          ]),
                     ),
-                    // Always one line, so every card's button is aligned.
-                    Text(
-                        hasDiscount
-                            ? formatXof(product.compareAtPriceXof!)
-                            : '',
-                        style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 10,
-                            decoration: TextDecoration.lineThrough)),
-                    if (product.rating != null)
-                      // Shrinks on narrow grid tiles instead of overflowing.
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Row(children: [
-                          for (var i = 1; i <= 5; i++)
-                            Icon(
-                                i <= product.rating!.round()
-                                    ? Icons.star
-                                    : Icons.star_border,
-                                size: 13,
-                                color: AppColors.gold),
-                          const SizedBox(width: 3),
-                          Text('(${product.reviewCount ?? 0})',
-                              style: const TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12)),
-                        ]),
-                      )
-                    else
-                      const Text('Aucun avis',
-                          style: TextStyle(
-                              color: AppColors.textSecondary, fontSize: 12)),
-                    const SizedBox(height: AppSpacing.sm),
-                    QuickAddButton(
-                        productId: product.id,
-                        productName: product.name,
-                        inStock: product.inStock,
-                        fullWidth: true),
+                    const SizedBox(height: 6),
+                    // Rating; right padding leaves room for the cart button.
+                    Padding(
+                      padding: const EdgeInsets.only(right: 52),
+                      child: SizedBox(
+                        height: 20,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: product.rating != null
+                              ? Row(children: [
+                                  const Icon(Icons.star_rounded,
+                                      size: 17, color: AppColors.goldOnLight),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                      '${product.rating} (${product.reviewCount ?? 0})',
+                                      style: const TextStyle(
+                                          color: _muted, fontSize: 12.5)),
+                                ])
+                              : const Text('Aucun avis',
+                                  style:
+                                      TextStyle(color: _muted, fontSize: 12.5)),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
-            ],
+              // Large white heart disc straddling the photo's top-right corner.
+              Positioned(
+                  top: 4,
+                  right: 4,
+                  child: _HeartDisc(productId: product.id)),
+              // Round cart button tucked into the card's bottom-right corner.
+              Positioned(
+                  right: 5, bottom: 5, child: _CartDisc(product: product)),
+            ]),
           ),
         ),
       ),
     );
   }
 }
+
+class _HeartDisc extends ConsumerWidget {
+  const _HeartDisc({required this.productId});
+  final String productId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final active = ref.watch(favoriteIdsProvider).contains(productId);
+    final label = active ? 'Retirer des favoris' : 'Ajouter aux favoris';
+    return Semantics(
+      button: true,
+      label: label,
+      child: Tooltip(
+        message: label,
+        child: Material(
+          color: AppColors.white,
+          shape: const CircleBorder(),
+          elevation: 1.5,
+          shadowColor: const Color(0x331C1B22),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: () => toggleFavorite(ref, productId),
+            child: SizedBox.square(
+              dimension: 46,
+              child: Icon(
+                  active
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                  size: 22,
+                  color: active ? AppColors.danger : AppColors.textSecondary),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CartDisc extends ConsumerStatefulWidget {
+  const _CartDisc({required this.product});
+  final ProductSummary product;
+
+  @override
+  ConsumerState<_CartDisc> createState() => _CartDiscState();
+}
+
+class _CartDiscState extends ConsumerState<_CartDisc> {
+  bool _busy = false;
+
+  Future<void> _add() async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(cartActionsProvider).add(widget.product.id);
+      if (mounted) showAddedToCart(context, widget.product.name);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text("Impossible d'ajouter ce produit. Réessayez.")));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final inStock = widget.product.inStock;
+    final enabled = inStock && !_busy;
+    final label = inStock ? 'Ajouter au panier' : 'Rupture de stock';
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: '$label : ${widget.product.name}',
+      child: Tooltip(
+        message: label,
+        child: Material(
+          color: inStock ? AppColors.primary : AppColors.border,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: enabled ? _add : null,
+            child: SizedBox.square(
+              dimension: 52,
+              child: Center(
+                child: _busy
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2.2, color: AppColors.white))
+                    : Icon(Icons.shopping_cart_rounded,
+                        size: 21,
+                        color: inStock
+                            ? AppColors.white
+                            : AppColors.textSecondary),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Main-axis size of a [ProductCardWidget] [width] wide: inset photo at the
+/// mock-up's 1.27:1 ratio, then the text block (grows with text scale).
+double productCardHeight(double width, double textScale) =>
+    32 + (width - 24) / 1.27 + 136 * textScale;

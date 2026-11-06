@@ -148,24 +148,63 @@ void main() {
     expect(find.text('Se connecter avec Face ID / empreinte'), findsNothing);
   });
 
-  testWidgets('Mes codes : refus d\'empreinte puis déverrouillage',
+  testWidgets('Mes codes : liste libre, détail verrouillé puis déverrouillé',
       (tester) async {
     await tester.pumpWidget(app(tester));
     container.read(sessionUserProvider.notifier).state = session;
     final ok = await container.read(biometricActionsProvider).enable(session);
     expect(ok, isTrue);
+    final callsAfterEnable = authenticator.calls;
 
     authenticator.allow = false;
     appRouter.go('/mes-codes');
     await settle(tester);
 
+    // The list shows no code: no prompt there.
+    expect(find.byType(DigitalCodeTile), findsWidgets);
+    expect(authenticator.calls, callsAfterEnable);
+
+    await tester.tap(find.byType(DigitalCodeTile).first);
+    await settle(tester);
     expect(find.text('Contenu protégé'), findsOneWidget);
     expect(find.textContaining('Authentification refusée.'), findsOneWidget);
-    expect(find.byType(DigitalCodeTile), findsNothing);
 
     authenticator.allow = true;
     await tester.tap(find.text('Déverrouiller'));
     await settle(tester);
-    expect(find.byType(DigitalCodeTile), findsWidgets);
+    expect(find.text('Contenu protégé'), findsNothing);
+  });
+
+  test("la connexion rapide d'un autre compte ne s'applique pas à la session",
+      () async {
+    final actions = container.read(biometricActionsProvider);
+    container.read(sessionUserProvider.notifier).state = session;
+    expect(await actions.enable(session), isTrue);
+    expect(
+        await container.read(biometricEnabledForSessionProvider.future), isTrue);
+
+    container.read(sessionUserProvider.notifier).state =
+        const SessionUser(name: 'Moussa Ndiaye', phone: '78 000 00 00');
+    expect(await container.read(biometricEnabledForSessionProvider.future),
+        isFalse);
+  });
+
+  testWidgets('désactivation possible même sans biométrie disponible',
+      (tester) async {
+    await tester.pumpWidget(app(tester));
+    container.read(sessionUserProvider.notifier).state = session;
+    expect(await container.read(biometricActionsProvider).enable(session),
+        isTrue);
+
+    authenticator.capable = false;
+    container.invalidate(biometricAvailableProvider);
+    appRouter.go('/compte');
+    await settle(tester);
+    expect(find.text('Activée'), findsOneWidget);
+
+    await tester.tap(find.textContaining('Face ID / empreinte'));
+    await settle(tester);
+    expect(store.values['biometric_session'], isNull);
+    expect(find.text('Indisponible'), findsOneWidget);
   });
 }

@@ -8,6 +8,7 @@ import '../contracts/digital_code.dart';
 import '../features/digital/digital_code_providers.dart';
 import '../theme/redesign_fonts.dart';
 import '../theme/tokens.dart';
+import '../widgets/biometric_gate.dart';
 import '../widgets/digital/digital_product_card.dart';
 import '../widgets/error_state.dart';
 import '../widgets/loading_state.dart';
@@ -30,7 +31,8 @@ class DigitalCodesScreen extends ConsumerWidget {
               ErrorState(onRetry: () => ref.invalidate(digitalCodesProvider)),
           data: (list) => list.isEmpty
               ? const _Empty()
-              : RefreshIndicator(
+              : BiometricGate(
+                  child: RefreshIndicator(
                   onRefresh: () => ref.refresh(digitalCodesProvider.future),
                   child: ListView.separated(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -41,7 +43,7 @@ class DigitalCodesScreen extends ConsumerWidget {
                         const SizedBox(height: AppSpacing.lg),
                     itemBuilder: (context, i) => DigitalCodeTile(code: list[i]),
                   ),
-                ),
+                )),
         ),
       ),
     );
@@ -171,7 +173,12 @@ class _DigitalCodeDetailScreenState
               onRetry: () => ref.invalidate(digitalCodeProvider(widget.id))),
           data: (c) => c == null
               ? const Center(child: Text('Code introuvable.'))
-              : _body(c),
+              : c.hasCode
+                  ? BiometricGate(
+                      reason:
+                          'Authentifiez-vous pour voir ce code d’activation.',
+                      child: _body(c))
+                  : _body(c),
         ),
       ),
     );

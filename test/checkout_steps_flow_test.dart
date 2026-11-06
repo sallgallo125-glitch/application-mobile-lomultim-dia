@@ -24,7 +24,11 @@ void main() {
         const SessionUser(name: 'Aissatou Diop', phone: '77 123 45 67');
     await tester.pumpWidget(UncontrolledProviderScope(
         container: c, child: const LoMultimediaApp(useGoogleFonts: false)));
-    await tester.runAsync(() => c.read(cartActionsProvider).add('p-005'));
+    // Runs on the test's fake clock: the mock API's simulated latency is a
+    // timer that settle() advances.
+    final added = c.read(cartActionsProvider).add('p-005');
+    await settle();
+    await added;
     appRouter.go('/commande/paiement');
     await settle();
 
@@ -34,7 +38,8 @@ void main() {
     await settle();
     expect(find.text('Indiquez votre adresse de livraison.'), findsOneWidget);
     await tester.enterText(
-        find.widgetWithText(TextField, 'Adresse de livraison'), 'Plateau, rue 10');
+        find.widgetWithText(TextField, 'Adresse de livraison'),
+        'Plateau, rue 10');
     await tester.tap(next);
     await settle();
 

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../contracts/account.dart';
 import '../features/account/account_providers.dart';
+import '../features/biometric/biometric_providers.dart';
 import '../features/customer/customer_providers.dart';
 import '../theme/redesign_fonts.dart';
 import '../theme/tokens.dart';
@@ -35,6 +36,9 @@ class AccountScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final signedIn = ref.watch(signedInProvider);
     final summary = ref.watch(accountSummaryProvider);
+    final biometricAvailable =
+        ref.watch(biometricAvailableProvider).value ?? false;
+    final biometricEnabled = ref.watch(biometricLoginProvider).value != null;
     // The white band runs up under the status bar and carries the bell
     // (the cart is already in the bottom bar).
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -120,6 +124,16 @@ class AccountScreen extends ConsumerWidget {
                                 value: 'SMS et app',
                                 muted: true,
                                 onTap: () => context.push('/notifications')),
+                            _Row(Icons.fingerprint,
+                                'Connexion Face ID / empreinte',
+                                value: !biometricAvailable
+                                    ? 'Indisponible'
+                                    : biometricEnabled
+                                        ? 'Activée'
+                                        : 'Désactivée',
+                                muted: !biometricEnabled,
+                                onTap: () => _toggleBiometric(ref, context,
+                                    available: biometricAvailable)),
                           ]),
                           const _GroupLabel('Aide et services'),
                           const _HelpGroup(),
@@ -140,6 +154,40 @@ class AccountScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Toggles the Face ID / fingerprint quick sign-in (Compte › Mon profil).
+Future<void> _toggleBiometric(WidgetRef ref, BuildContext context,
+    {required bool available}) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final actions = ref.read(biometricActionsProvider);
+  if (!available) {
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(
+          content: Text(
+              'Face ID / empreinte n’est pas disponible sur cet appareil.')));
+    return;
+  }
+  final enabled = (await ref.read(biometricLoginProvider.future)) != null;
+  if (enabled) {
+    await actions.disable();
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+          const SnackBar(content: Text('Connexion rapide désactivée.')));
+    return;
+  }
+  final session = ref.read(sessionUserProvider);
+  if (session == null) return;
+  final ok = await actions.enable(session);
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(
+        content: Text(ok
+            ? 'Connexion rapide activée : Face ID ou empreinte à la prochaine connexion.'
+            : 'Activation impossible. Réessayez.')));
 }
 
 /// The page's scroll view: a pinned blue bar ("Mon compte", then the name
@@ -206,7 +254,8 @@ class _AccountScrollState extends State<_AccountScroll> {
               key: ValueKey(_collapsed),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: displayFont(AppText.pageTitle.copyWith(letterSpacing: -0.2))),
+              style:
+                  displayFont(AppText.pageTitle.copyWith(letterSpacing: -0.2))),
         ),
         actions: const [_BellButton(), SizedBox(width: AppSpacing.xs)],
       ),

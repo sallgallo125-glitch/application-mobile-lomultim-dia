@@ -27,6 +27,7 @@ import '../screens/info_screens.dart';
 import '../screens/loyalty_member_screens.dart';
 import '../screens/digital_codes_screen.dart';
 import 'main_shell.dart';
+import 'swipe_branch_container.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -34,9 +35,12 @@ final GoRouter appRouter = GoRouter(
   navigatorKey: rootNavigatorKey,
   initialLocation: '/',
   routes: [
-    StatefulShellRoute.indexedStack(
+    StatefulShellRoute(
       builder: (context, state, navigationShell) =>
           MainShell(navigationShell: navigationShell),
+      navigatorContainerBuilder: (context, navigationShell, children) =>
+          SwipeBranchContainer(
+              navigationShell: navigationShell, children: children),
       branches: [
         StatefulShellBranch(routes: [
           GoRoute(path: '/', builder: (context, state) => const HomeScreen())

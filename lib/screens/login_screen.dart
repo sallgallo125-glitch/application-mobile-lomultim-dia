@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/account/account_providers.dart';
+import '../features/biometric/biometric_providers.dart';
 import '../theme/tokens.dart';
 import '../widgets/app_header.dart' show AppBackButton;
 
@@ -35,55 +36,89 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() => _error = 'E-mail, téléphone ou mot de passe incorrect.');
       return;
     }
-    ref.read(sessionUserProvider.notifier).state =
-        SessionUser(name: account.fullName, phone: account.phone);
+    final user = SessionUser(name: account.fullName, phone: account.phone);
+    ref.read(sessionUserProvider.notifier).state = user;
+    // Keeps Face ID / fingerprint in sync with the last classic sign-in.
+    ref.read(biometricActionsProvider).refreshStoredLogin(user);
+    context.go('/compte');
+  }
+
+  /// Quick sign-in: restores the identity saved when the quick sign-in was
+  /// first enabled in Compte, after a successful biometric check.
+  Future<void> _quickLogin() async {
+    setState(() => _error = null);
+    final user = await ref.read(biometricActionsProvider).tryLogin();
+    if (!mounted) return;
+    if (user == null) {
+      setState(() =>
+          _error = 'Authentification refusée. Utilisez votre mot de passe.');
+      return;
+    }
+    ref.read(sessionUserProvider.notifier).state = user;
     context.go('/compte');
   }
 
   @override
-  Widget build(BuildContext context) => AuthScaffold(
-        title: 'Connexion',
-        child: Form(
-          key: _form,
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            AuthField(
-              controller: _identifier,
-              label: 'Email ou téléphone',
-              icon: Icons.mail_outline,
-              keyboardType: TextInputType.emailAddress,
-              validator: (v) => (v ?? '').trim().isEmpty
-                  ? 'Indiquez votre e-mail ou votre téléphone.'
-                  : null,
+  Widget build(BuildContext context) {
+    final quickLogin =
+        ref.watch(biometricQuickLoginAvailableProvider).value ?? false;
+    return AuthScaffold(
+      title: 'Connexion',
+      child: Form(
+        key: _form,
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          AuthField(
+            controller: _identifier,
+            label: 'Email ou téléphone',
+            icon: Icons.mail_outline,
+            keyboardType: TextInputType.emailAddress,
+            validator: (v) => (v ?? '').trim().isEmpty
+                ? 'Indiquez votre e-mail ou votre téléphone.'
+                : null,
+          ),
+          AuthField(
+            controller: _password,
+            label: 'Mot de passe',
+            icon: Icons.lock_outline,
+            password: true,
+            last: true,
+            onSubmitted: _submit,
+            validator: (v) =>
+                (v ?? '').isEmpty ? 'Indiquez votre mot de passe.' : null,
+          ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+              child: Text(_error!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      color: AppColors.danger, fontWeight: FontWeight.w700)),
             ),
-            AuthField(
-              controller: _password,
-              label: 'Mot de passe',
-              icon: Icons.lock_outline,
-              password: true,
-              last: true,
-              onSubmitted: _submit,
-              validator: (v) =>
-                  (v ?? '').isEmpty ? 'Indiquez votre mot de passe.' : null,
-            ),
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: Text(_error!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        color: AppColors.danger, fontWeight: FontWeight.w700)),
-              ),
+          const SizedBox(height: AppSpacing.sm),
+          AuthButton(label: 'Se connecter', onPressed: _submit),
+          if (quickLogin) ...[
+            const SizedBox(height: AppSpacing.md),
+            const Text('ou',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
             const SizedBox(height: AppSpacing.sm),
-            AuthButton(label: 'Se connecter', onPressed: _submit),
-            const SizedBox(height: AppSpacing.lg),
-            AuthLink(
-                text: 'Pas encore de compte ? ',
-                action: "S'inscrire",
-                onTap: () => context.pushReplacement('/inscription')),
-          ]),
-        ),
-      );
+            OutlinedButton.icon(
+              onPressed: _quickLogin,
+              icon: const Icon(Icons.fingerprint),
+              label: const Text('Se connecter avec Face ID / empreinte',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.lg),
+          AuthLink(
+              text: 'Pas encore de compte ? ',
+              action: "S'inscrire",
+              onTap: () => context.pushReplacement('/inscription')),
+        ]),
+      ),
+    );
+  }
 }
 
 /// Sign-up: first/last name, e-mail, phone, address, password + confirmation.
@@ -130,7 +165,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         email: _email.text.trim(),
         phone: _phone.text.trim(),
         address: _address.text.trim(),
-        password: _password.text);
+        password: hashPassword(_password.text));
     final accounts = ref.read(registeredAccountsProvider);
     final taken = [demoAccount, ...accounts].any((a) =>
         a.email.toLowerCase() == account.email.toLowerCase() ||

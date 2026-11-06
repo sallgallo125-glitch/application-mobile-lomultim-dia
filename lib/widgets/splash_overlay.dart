@@ -23,7 +23,7 @@ class SplashOverlay extends StatefulWidget {
 
 class _SplashOverlayState extends State<SplashOverlay>
     with SingleTickerProviderStateMixin {
-  static const _full = Duration(milliseconds: 1800);
+  static const _full = Duration(milliseconds: 1100);
   static const _reduced = Duration(milliseconds: 900);
 
   /// Point of the timeline where the emblem lands (haptic + burst).

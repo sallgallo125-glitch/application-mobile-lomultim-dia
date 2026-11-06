@@ -150,7 +150,7 @@ class _FavoritesGridState extends ConsumerState<_FavoritesGrid> {
                 crossAxisCount: columns,
                 crossAxisSpacing: AppSpacing.sm,
                 mainAxisSpacing: AppSpacing.sm,
-                mainAxisExtent: tileWidth * .85 + 215 * textScale),
+                mainAxisExtent: productCardHeight(tileWidth, textScale)),
             delegate: SliverChildBuilderDelegate(
                 (context, index) => ProductCardWidget(
                     product: favorites[index],

@@ -1,4 +1,5 @@
-import 'dart:math' as math;
+import 'dart:async';
+
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import '../contracts/home.dart';
 import '../features/home/home_providers.dart';
 import '../theme/tokens.dart';
 import '../utils/currency.dart';
+import '../widgets/home_trending.dart';
 import '../widgets/app_header.dart';
 import '../widgets/card_faces.dart' show GiftCardFace;
 import 'boutique_screen.dart' show CatalogSort, shopSortRequestProvider;
@@ -217,6 +219,20 @@ class _HomeContentView extends ConsumerWidget {
           ),
           ProductRail(products: content.bestSellers),
         ],
+        const SizedBox(height: AppSpacing.lg),
+        HomeTrending(
+          products: HomeTrending.pick([
+            ...content.bestSellers,
+            ...content.flashProducts,
+            ...content.newArrivals,
+            ...content.recommendedProducts,
+          ]),
+          onSeeAll: () {
+            ref.read(shopSortRequestProvider.notifier).state =
+                CatalogSort.rating;
+            context.go('/boutique');
+          },
+        ),
         if (content.newArrivals.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.lg),
           SectionHeader(
@@ -315,123 +331,265 @@ class _HomeContentView extends ConsumerWidget {
 
 /// Home entry point to buy a gift card: same header rhythm as the other
 /// sections, a straight card preview and amounts to pick directly.
+/// "Cartes cadeaux" (home): violet panel, laid out like
+/// "Produits tendances" (uppercase title, subtitle, round arrow) over a sideways row of the
+/// gift cards as they look today ([GiftCardFace]), one per amount, each
+/// with "Offrir" under it, then an "Autre montant" tile.
 class _GiftCardPromo extends StatefulWidget {
   const _GiftCardPromo();
+
+  static const _amounts = [5000, 10000, 25000, 50000, 100000];
+  static const _cardWidth = 230.0;
+  static const _cardHeight = _cardWidth * 960 / 1540;
+
+  /// Bright violet panel: every card colour (blue, red, turquoise,
+  /// orange) stands out from it, and white text reads at 4.6:1.
+  static const violet = Color(0xFF7F4CEF);
 
   @override
   State<_GiftCardPromo> createState() => _GiftCardPromoState();
 }
 
+/// Endless carousel: slides one card forward every 3 s, last → first
+/// without going back; a finger on it pauses the rotation.
 class _GiftCardPromoState extends State<_GiftCardPromo> {
-  static const _amounts = [25000, 50000, 100000];
-  int _amount = 50000;
+  static const _amounts = _GiftCardPromo._amounts;
+  static const _cardWidth = _GiftCardPromo._cardWidth;
+  static const _cardHeight = _GiftCardPromo._cardHeight;
+  static const violet = _GiftCardPromo.violet;
+  static const _interval = Duration(seconds: 3);
+  static const _tileCount = 6; // 5 amounts + "Autre montant"
 
-  void _open([int? amount]) => context
-      .push(amount == null ? '/carte-cadeau' : '/carte-cadeau?montant=$amount');
+  /// Starts far from 0 so it can always move forward; re-centred on the
+  /// same card past [_recentreAfter].
+  static const _loopStart = _tileCount * 10;
+  static const _recentreAfter = _tileCount * 30;
+
+  PageController? _controller;
+  double _viewport = 0;
+  int _page = _loopStart;
+  Timer? _timer;
+
+  /// One page = left margin + card + gap, so the next card peeks in.
+  PageController _controllerFor(double width) {
+    if (_controller != null && _viewport == width) return _controller!;
+    _controller?.dispose();
+    _viewport = width;
+    return _controller = PageController(
+        initialPage: _page,
+        viewportFraction: ((16 + _cardWidth) / width).clamp(.2, 1.0));
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _schedule();
+  }
+
+  void _schedule() {
+    _timer?.cancel();
+    _timer = Timer.periodic(_interval, (_) {
+      final c = _controller;
+      if (c == null || !c.hasClients) return;
+      if (_page > _recentreAfter) {
+        _page = _loopStart + _page % _tileCount;
+        c.jumpToPage(_page);
+      }
+      c.animateToPage(_page + 1,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeOutCubic);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      SectionHeader(
-          title: 'Cartes cadeaux',
-          actionLabel: 'Voir →',
-          onActionPressed: _open),
-      const Padding(
-        padding:
-            EdgeInsets.only(left: AppSpacing.lg, top: 2, bottom: AppSpacing.md),
-        child: Text(
-          'Offrez le choix, de 5 000 à 1 000 000 FCFA.',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+    void open([int? amount]) => context.push(
+        amount == null ? '/carte-cadeau' : '/carte-cadeau?montant=$amount');
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: violet,
+          borderRadius: BorderRadius.circular(18),
         ),
-      ),
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-        child: Column(children: [
-          GestureDetector(
-            onTap: () => _open(_amount),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              // Two thirds of the width (about a real card's size), at most
-              // 300 so it stays a preview on tablets.
-              child: GiftCardFace(
-                  key: ValueKey(_amount),
-                  amountXof: _amount,
-                  maxWidth:
-                      math.min(MediaQuery.sizeOf(context).width * 2 / 3, 300)),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Row(children: [
-            for (final amount in _amounts) ...[
-              Expanded(
-                child: _AmountChoice(
-                  label: _spacedXof(amount),
-                  selected: amount == _amount,
-                  onTap: () => setState(() => _amount = amount),
+        child: Padding(
+          padding: const EdgeInsets.only(top: 16, bottom: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('CARTES CADEAUX',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                color: AppColors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: .2)),
+                        SizedBox(height: 4),
+                        Text('OFFREZ LE CHOIX, DE 5 000 À 1 000 000 FCFA',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                color: AppColors.white,
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w500)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Semantics(
+                    button: true,
+                    label: 'Voir les cartes cadeaux',
+                    child: Material(
+                      color: AppColors.white,
+                      shape: const StadiumBorder(),
+                      child: InkWell(
+                        customBorder: const StadiumBorder(),
+                        onTap: open,
+                        child: const SizedBox(
+                          width: 64,
+                          height: 36,
+                          child: Icon(Icons.arrow_forward_rounded,
+                              color: violet, size: 24),
+                        ),
+                      ),
+                    ),
+                  ),
+                ]),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: _cardHeight,
+                child: LayoutBuilder(
+                  builder: (context, box) => Listener(
+                    // A finger on the carousel pauses the rotation.
+                    onPointerDown: (_) => _timer?.cancel(),
+                    onPointerUp: (_) => _schedule(),
+                    onPointerCancel: (_) => _schedule(),
+                    child: PageView.builder(
+                      controller: _controllerFor(box.maxWidth),
+                      padEnds: false,
+                      // No itemCount: endless, the tiles repeat in order.
+                      onPageChanged: (i) => _page = i,
+                      itemBuilder: (context, i) {
+                        final k = i % _tileCount;
+                        return Padding(
+                          padding: const EdgeInsets.only(left: 16),
+                          child: Align(
+                            alignment: Alignment.topLeft,
+                            child: k < _amounts.length
+                                ? _GiftTile(
+                                    amount: _amounts[k],
+                                    width: _cardWidth,
+                                    onTap: () => open(_amounts[k]))
+                                : _OtherAmountTile(
+                                    width: _cardWidth,
+                                    height: _cardHeight,
+                                    onTap: open),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
             ],
-            Expanded(
-              child: _AmountChoice(
-                  label: 'Autre', selected: false, onTap: () => _open()),
-            ),
-          ]),
-          const SizedBox(height: AppSpacing.md),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: () => _open(_amount),
-              child: Text('Offrir ${formatXof(_amount)}',
-                  style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w700)),
-            ),
           ),
-        ]),
+        ),
       ),
-    ]);
+    );
   }
 }
 
-/// "50 000" without the currency, to fit four choices on one row.
-String _spacedXof(int amount) => formatXof(amount).replaceAll(' FCFA', '');
-
-class _AmountChoice extends StatelessWidget {
-  const _AmountChoice(
-      {required this.label, required this.selected, required this.onTap});
-  final String label;
-  final bool selected;
+/// One gift card (unchanged face); a tap opens it for that amount.
+class _GiftTile extends StatelessWidget {
+  const _GiftTile(
+      {required this.amount, required this.width, required this.onTap});
+  final int amount;
+  final double width;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) => Semantics(
         button: true,
-        selected: selected,
-        child: Material(
-          color: selected ? AppColors.primarySoft : AppColors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadii.md),
-            side: BorderSide(
-                color: selected ? AppColors.primary : AppColors.border,
-                width: selected ? 1.5 : 1),
+        label: 'Offrir une carte cadeau de ${formatXof(amount)}',
+        child: GestureDetector(
+          onTap: onTap,
+          child: SizedBox(
+            width: width,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GiftCardFace(amountXof: amount, maxWidth: width),
+              ],
+            ),
           ),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(AppRadii.md),
-            child: SizedBox(
-              height: 44,
-              child: Center(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(label,
-                      style: TextStyle(
-                          color: selected ? AppColors.primary : AppColors.text,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700)),
+        ),
+      );
+}
+
+/// Last tile: same size as a card, outlined, opens the free amount form.
+class _OtherAmountTile extends StatelessWidget {
+  const _OtherAmountTile(
+      {required this.width, required this.height, required this.onTap});
+  final double width;
+  final double height;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: 'Choisir un autre montant',
+        child: SizedBox(
+          width: width,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Material(
+                color: AppColors.white.withValues(alpha: .14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.lg),
+                  side: BorderSide(
+                      color: AppColors.white.withValues(alpha: .75),
+                      width: 1.5),
+                ),
+                child: InkWell(
+                  onTap: onTap,
+                  borderRadius: BorderRadius.circular(AppRadii.lg),
+                  child: SizedBox(
+                    width: width,
+                    height: height,
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_circle_outline_rounded,
+                            size: 36, color: AppColors.white),
+                        SizedBox(height: 8),
+                        Text('Autre montant',
+                            style: TextStyle(
+                                color: AppColors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700)),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
         ),
       );

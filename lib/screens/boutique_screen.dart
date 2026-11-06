@@ -28,7 +28,6 @@ export '../features/catalog/shop_filters.dart' show CatalogSort;
 /// shop applies it.
 final shopSortRequestProvider = StateProvider<CatalogSort?>((ref) => null);
 
-
 /// True while the shop's products scroll down: the bottom bar slides away
 /// and comes back as soon as the scrolling stops.
 final shopNavBarHiddenProvider = StateProvider<bool>((ref) => false);
@@ -280,7 +279,8 @@ class _Content extends StatelessWidget {
                             crossAxisSpacing: AppSpacing.sm,
                             mainAxisSpacing: AppSpacing.sm,
                             // Same card as the home rails.
-                            mainAxisExtent: tileWidth * .85 + 215 * textScale),
+                            mainAxisExtent:
+                                productCardHeight(tileWidth, textScale)),
                         delegate: SliverChildBuilderDelegate(
                             (context, index) => ProductCardWidget(
                                 product: products[index],

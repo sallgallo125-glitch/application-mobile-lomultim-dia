@@ -420,7 +420,7 @@ class _Results extends StatelessWidget {
                 crossAxisCount: columns,
                 crossAxisSpacing: AppSpacing.sm,
                 mainAxisSpacing: AppSpacing.sm,
-                mainAxisExtent: tileWidth * .85 + 215 * textScale),
+                mainAxisExtent: productCardHeight(tileWidth, textScale)),
             itemCount: results.length,
             itemBuilder: (context, index) => ProductCardWidget(
                 product: results[index],

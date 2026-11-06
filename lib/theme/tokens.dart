@@ -20,6 +20,10 @@ class AppColors {
   /// Lighter gold for text on the blue cards: --or on --bleu is too faint
   /// to read (contrast below 3:1).
   static const goldOnDark = Color(0xFFFCD34D);
+
+  /// Darker gold for star icons on white: --or is too faint there
+  /// (2.1:1, below the 3:1 needed for icons); this one reaches 3.2:1.
+  static const goldOnLight = Color(0xFFD97706);
   static const success = Color(0xFF16A34A); // --vert
   static const text = Color(0xFF1A1D24); // --noir
   static const textSecondary = Color(0xFF64748B); // --gris

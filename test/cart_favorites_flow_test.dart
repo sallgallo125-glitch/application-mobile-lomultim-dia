@@ -123,7 +123,7 @@ void main() {
         const ProviderScope(child: LoMultimediaApp(useGoogleFonts: false)));
     await open(tester, '/boutique');
     expect(find.text('Filtres'), findsOneWidget);
-    await tester.tap(find.text('Ajouter').first);
+    await tester.tap(find.byTooltip('Ajouter au panier').first);
     await settle(tester);
     // The shop has no header cart any more: the bottom bar's tab counts it.
     expect(find.bySemanticsLabel('Onglet panier, 1 article'), findsOneWidget);

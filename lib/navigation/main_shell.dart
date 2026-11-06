@@ -8,12 +8,13 @@ import '../screens/boutique_screen.dart'
 import '../theme/tokens.dart';
 
 /// Tabs of the bottom bar (filled icons, like the reference design).
+/// (outlined icon, filled icon when selected, label).
 const _tabs = [
-  (Icons.home_rounded, 'Accueil'),
-  (Icons.storefront_rounded, 'Boutique'),
-  (Icons.shopping_cart_rounded, 'Panier'),
-  (Icons.star_rounded, 'Lo+'),
-  (Icons.person_rounded, 'Compte'),
+  (Icons.home_outlined, Icons.home_rounded, 'Accueil'),
+  (Icons.storefront_outlined, Icons.storefront_rounded, 'Boutique'),
+  (Icons.shopping_cart_outlined, Icons.shopping_cart_rounded, 'Panier'),
+  (Icons.star_outline_rounded, Icons.star_rounded, 'Lo+'),
+  (Icons.person_outline_rounded, Icons.person_rounded, 'Compte'),
 ];
 
 /// Index of the "Panier" tab (carries the item-count badge).
@@ -73,7 +74,8 @@ class _BottomBar extends ConsumerWidget {
     return DecoratedBox(
       decoration: const BoxDecoration(
         color: AppColors.white,
-        border: Border(top: BorderSide(color: AppColors.border)),
+        // Darker top rule (slate 300) so the white bar stands out from the page.
+        border: Border(top: BorderSide(color: Color(0xFFCBD5E1))),
         boxShadow: [
           BoxShadow(
               color: Color(0x0F1E2A5A), blurRadius: 12, offset: Offset(0, -2)),
@@ -88,7 +90,8 @@ class _BottomBar extends ConsumerWidget {
               Expanded(
                 child: _NavItem(
                   icon: _tabs[i].$1,
-                  label: _tabs[i].$2,
+                  selectedIcon: _tabs[i].$2,
+                  label: _tabs[i].$3,
                   selected: i == currentIndex,
                   badge: i == _cartTab ? cartCount : 0,
                   onTap: () => onSelect(i),
@@ -104,11 +107,13 @@ class _BottomBar extends ConsumerWidget {
 class _NavItem extends StatelessWidget {
   const _NavItem(
       {required this.icon,
+      required this.selectedIcon,
       required this.label,
       required this.selected,
       required this.badge,
       required this.onTap});
   final IconData icon;
+  final IconData selectedIcon;
   final String label;
   final bool selected;
   final int badge;
@@ -118,7 +123,8 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? AppColors.primaryDark : _inactive;
+    // Selected: brand blue, filled icon on a pale blue pill.
+    final color = selected ? AppColors.primary : _inactive;
     return Semantics(
       button: true,
       selected: selected,
@@ -132,11 +138,23 @@ class _NavItem extends StatelessWidget {
         radius: 32,
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           Stack(clipBehavior: Clip.none, children: [
-            Icon(icon, size: 25, color: color),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              width: 58,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected ? AppColors.primarySoft : Colors.transparent,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+              ),
+              child: Icon(selected ? selectedIcon : icon,
+                  size: 25, color: color),
+            ),
             if (badge > 0)
               Positioned(
-                top: -5,
-                right: -9,
+                top: -4,
+                right: 8,
                 child: Container(
                   constraints:
                       const BoxConstraints(minWidth: 17, minHeight: 17),
@@ -155,7 +173,7 @@ class _NavItem extends StatelessWidget {
                 ),
               ),
           ]),
-          const SizedBox(height: 3),
+          const SizedBox(height: 2),
           Text(label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

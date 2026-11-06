@@ -30,10 +30,13 @@ class ProductRail extends StatelessWidget {
     final textScale = MediaQuery.textScalerOf(context).scale(1);
     return SizedBox(
       // Compact: photo (~120) + text and footer that grow with text scale.
-      height: compact ? 125 + 172 * textScale : 150 + 215 * textScale,
+      height: compact
+          ? 125 + 172 * textScale
+          : 36 + productCardHeight(180, textScale),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: padding),
+        padding: EdgeInsets.symmetric(
+            horizontal: padding, vertical: compact ? 0 : 18),
         itemCount: products.length,
         separatorBuilder: (context, index) =>
             SizedBox(width: compact ? 11 : AppSpacing.md),
@@ -43,6 +46,7 @@ class ProductRail extends StatelessWidget {
                 onPressed: (selected) =>
                     context.push('/produit/${selected.id}'))
             : ProductCardWidget(
+                width: 180,
                 product: products[index],
                 onPressed: (selected) =>
                     context.push('/produit/${selected.id}')),

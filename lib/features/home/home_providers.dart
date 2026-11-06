@@ -20,8 +20,11 @@ final httpClientProvider = Provider<http.Client>((ref) => apiBaseUrl.isEmpty
     : http.Client());
 
 final apiClientProvider = Provider<ApiClient>((ref) {
-  assert(apiBaseUrl.isEmpty || apiBaseUrl.startsWith('https://'),
-      'API_BASE_URL must use HTTPS');
+  // Checked in release too (an assert is stripped there): customer data
+  // must never travel in cleartext.
+  if (apiBaseUrl.isNotEmpty && !apiBaseUrl.startsWith('https://')) {
+    throw StateError('API_BASE_URL must use HTTPS: $apiBaseUrl');
+  }
   return ApiClient(
       client: ref.watch(httpClientProvider),
       baseUrl: apiBaseUrl.isEmpty ? 'http://mock.lo.local' : apiBaseUrl,

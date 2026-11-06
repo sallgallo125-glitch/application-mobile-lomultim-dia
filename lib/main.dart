@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'features/biometric/biometric_providers.dart';
 import 'features/persistence.dart';
 import 'navigation/app_router.dart';
 import 'theme/tokens.dart';
@@ -15,6 +16,7 @@ Future<void> main() async {
   final prefs = await SharedPreferences.getInstance();
   final persistence = await SqliteLocalPersistence.open();
   await persistence.migrateFrom(prefs);
+  await clearStaleBiometricSession(prefs);
   runApp(ProviderScope(
     overrides: [localPersistenceProvider.overrideWithValue(persistence)],
     child: const LoMultimediaApp(showSplash: true),

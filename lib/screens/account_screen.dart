@@ -38,7 +38,8 @@ class AccountScreen extends ConsumerWidget {
     final summary = ref.watch(accountSummaryProvider);
     final biometricAvailable =
         ref.watch(biometricAvailableProvider).value ?? false;
-    final biometricEnabled = ref.watch(biometricLoginProvider).value != null;
+    final biometricEnabled =
+        ref.watch(biometricEnabledForSessionProvider).value ?? false;
     // The white band runs up under the status bar and carries the bell
     // (the cart is already in the bottom bar).
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -126,14 +127,13 @@ class AccountScreen extends ConsumerWidget {
                                 onTap: () => context.push('/notifications')),
                             _Row(Icons.fingerprint,
                                 'Connexion Face ID / empreinte',
-                                value: !biometricAvailable
-                                    ? 'Indisponible'
-                                    : biometricEnabled
-                                        ? 'Activée'
+                                value: biometricEnabled
+                                    ? 'Activée'
+                                    : !biometricAvailable
+                                        ? 'Indisponible'
                                         : 'Désactivée',
                                 muted: !biometricEnabled,
-                                onTap: () => _toggleBiometric(ref, context,
-                                    available: biometricAvailable)),
+                                onTap: () => _toggleBiometric(ref, context)),
                           ]),
                           const _GroupLabel('Aide et services'),
                           const _HelpGroup(),
@@ -157,37 +157,38 @@ class AccountScreen extends ConsumerWidget {
 }
 
 /// Toggles the Face ID / fingerprint quick sign-in (Compte › Mon profil).
-Future<void> _toggleBiometric(WidgetRef ref, BuildContext context,
-    {required bool available}) async {
+Future<void> _toggleBiometric(WidgetRef ref, BuildContext context) async {
   final messenger = ScaffoldMessenger.of(context);
   final actions = ref.read(biometricActionsProvider);
-  if (!available) {
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(
-          content: Text(
-              'Face ID / empreinte n’est pas disponible sur cet appareil.')));
+  void show(String text) => messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(text)));
+
+  // Turning it off must always work, even once biometrics are gone.
+  final enabled = await ref.read(biometricEnabledForSessionProvider.future);
+  if (enabled) {
+    final ok = await actions.disable();
+    if (!context.mounted) return;
+    show(ok
+        ? 'Connexion rapide désactivée.'
+        : 'Désactivation impossible. Réessayez.');
     return;
   }
-  final enabled = (await ref.read(biometricLoginProvider.future)) != null;
-  if (enabled) {
-    await actions.disable();
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-          const SnackBar(content: Text('Connexion rapide désactivée.')));
+  // Fresh check: a fingerprint may have been enrolled since the last one.
+  ref.invalidate(biometricAvailableProvider);
+  final available = await ref.read(biometricAvailableProvider.future);
+  if (!context.mounted) return;
+  if (!available) {
+    show('Face ID / empreinte n’est pas disponible sur cet appareil.');
     return;
   }
   final session = ref.read(sessionUserProvider);
   if (session == null) return;
   final ok = await actions.enable(session);
   if (!context.mounted) return;
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(
-        content: Text(ok
-            ? 'Connexion rapide activée : Face ID ou empreinte à la prochaine connexion.'
-            : 'Activation impossible. Réessayez.')));
+  show(ok
+      ? 'Connexion rapide activée : Face ID ou empreinte à la prochaine connexion.'
+      : 'Activation impossible. Réessayez.');
 }
 
 /// The page's scroll view: a pinned blue bar ("Mon compte", then the name

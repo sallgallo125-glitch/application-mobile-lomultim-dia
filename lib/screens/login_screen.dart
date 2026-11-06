@@ -36,6 +36,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() => _error = 'E-mail, téléphone ou mot de passe incorrect.');
       return;
     }
+    // Old plain-text or SHA-256 passwords move to PBKDF2 now.
+    upgradeStoredPassword(ref, account, _password.text);
     final user = SessionUser(name: account.fullName, phone: account.phone);
     ref.read(sessionUserProvider.notifier).state = user;
     // Keeps Face ID / fingerprint in sync with the last classic sign-in.
